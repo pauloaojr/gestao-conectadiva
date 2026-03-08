@@ -1,0 +1,25 @@
+project_id = "ejvdepwhywlsyvuuhrlc"
+
+[functions.create-user]
+verify_jwt = false
+
+[functions.reset-user-password]
+verify_jwt = false
+
+[functions.exchange-recovery-token]
+verify_jwt = false
+
+[functions.set-password-with-reset-token]
+verify_jwt = false
+
+[functions.update-user-email]
+verify_jwt = false
+
+[functions.smtp-test]
+verify_jwt = false
+
+[functions.notification-scheduler]
+verify_jwt = false
+
+[functions.trigger-notification-scheduler]
+verify_jwt = false

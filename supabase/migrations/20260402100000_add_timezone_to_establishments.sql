@@ -1,0 +1,2 @@
+ALTER TABLE public.establishments
+ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT 'GMT-3';
