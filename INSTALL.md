@@ -48,8 +48,21 @@ npx supabase link --project-ref seu-project-id
 npx supabase db push
 ```
 
-### 3. Edge Functions
-O projeto utiliza Edge Functions para processos críticos como criação de usuários e reset de senha.
+### 3. Backend (APIs e E-mail)
+O backend Node.js (`./backend/`) fornece:
+- APIs REST (Pacientes, Receitas, Despesas) – autenticadas por token
+- E-mail SMTP
+- Storage MinIO
+
+Configure no `.env` do backend:
+```
+PORT=3021
+SUPABASE_URL=https://seu-projeto.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=sua-service-role-key
+```
+
+### 4. Edge Functions (Supabase)
+Edge Functions para processos críticos (criação de usuários, reset de senha):
 
 ```bash
 # Deploy da função de criação de usuário
@@ -57,16 +70,15 @@ npx supabase functions deploy create-user
 
 # Deploy da função de reset de senha
 npx supabase functions deploy reset-user-password
-
-# Deploy da API REST de Pacientes (CRUD para consumidores externos)
-npx supabase functions deploy api-patients
 ```
+
+> **Nota:** As APIs de Pacientes, Receitas e Despesas foram migradas para o Backend (`/api/patients`, `/api/revenue`, `/api/expenses`). As Edge Functions `api-patients`, `api-revenue` e `api-expenses` podem ser descontinuadas.
 
 #### Notas sobre Edge Functions:
 - Certifique-se de configurar as variáveis de ambiente necessárias no dashboard do Supabase (**Settings > API > Edge Functions**).
 - As funções estão localizadas em `./supabase/functions/`.
 
-### 4. Deploy do Frontend (Produção)
+### 5. Deploy do Frontend (Produção)
 Para gerar o build de produção:
 
 ```bash

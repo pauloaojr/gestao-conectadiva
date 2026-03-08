@@ -22,7 +22,7 @@ import {
   Check,
   FileText,
 } from "lucide-react";
-import { API_ENDPOINTS } from "@/lib/apiDocs";
+import { API_MENUS } from "@/lib/apiDocs";
 import { ApiEndpointDoc } from "@/components/ApiEndpointDoc";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -171,16 +171,38 @@ const ApiManagement = () => {
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground mb-4">
-                Documentação dos endpoints REST disponíveis. A base URL usa o mesmo domínio do Supabase do projeto.
+                Documentação dos endpoints REST. Todas as APIs (Pacientes, Receitas, Despesas) usam o Backend.
+                Configure <code className="text-xs bg-muted px-1 rounded">VITE_BACKEND_URL</code> para exibir a URL completa da API Pacientes.
               </p>
-              <div className="space-y-3">
-                {API_ENDPOINTS.map((ep, i) => (
-                  <ApiEndpointDoc
-                    key={`${ep.method}-${ep.path}-${i}`}
-                    endpoint={ep}
-                    baseUrl={import.meta.env.VITE_SUPABASE_URL ?? ""}
-                  />
-                ))}
+              <div className="space-y-6">
+                {API_MENUS.map((menu) => {
+                  const baseUrl =
+                    menu.baseUrlKey === "backend"
+                      ? (import.meta.env.VITE_BACKEND_URL ?? "")
+                      : (import.meta.env.VITE_SUPABASE_URL ?? "");
+                  return (
+                    <div key={menu.id} className="space-y-3">
+                      <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground border-b pb-2">
+                        {menu.label}
+                        {menu.baseUrlKey === "backend" && (
+                          <span className="ml-2 text-xs font-normal normal-case">(Backend)</span>
+                        )}
+                        {menu.baseUrlKey === "supabase" && (
+                          <span className="ml-2 text-xs font-normal normal-case">(Supabase Edge Functions)</span>
+                        )}
+                      </h3>
+                      <div className="space-y-3">
+                        {menu.endpoints.map((ep, i) => (
+                          <ApiEndpointDoc
+                            key={`${menu.id}-${ep.method}-${i}`}
+                            endpoint={ep}
+                            baseUrl={baseUrl}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </CardContent>
           </Card>

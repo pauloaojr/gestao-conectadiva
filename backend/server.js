@@ -3,10 +3,11 @@ const express = require("express");
 const cors = require("cors");
 const nodemailer = require("nodemailer");
 const { Client: MinioClient } = require("minio");
-const { randomUUID } = require("crypto");
+const { randomUUID, createHash } = require("crypto");
+const { createClient } = require("@supabase/supabase-js");
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3021;
 
 app.use(cors({ origin: true }));
 app.use(express.json({ limit: "25mb" }));
@@ -453,6 +454,476 @@ app.post("/api/storage/minio/cleanup-orphans", async (req, res) => {
       error: "Falha ao limpar arquivos órfãos no Minio.",
       details: message,
     });
+  }
+});
+
+function getSupabaseAdmin() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return null;
+  return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+}
+
+async function sha256(text) {
+  return createHash("sha256").update(text).digest("hex");
+}
+
+async function validateApiToken(req) {
+  const token = req.headers["x-api-key"] || (req.headers.authorization || "").replace(/^Bearer\s+/i, "").trim();
+  if (!token) return false;
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return false;
+  const hash = await sha256(token);
+  const { data, error } = await supabase
+    .from("api_tokens")
+    .select("id")
+    .eq("token_hash", hash)
+    .eq("is_active", true)
+    .maybeSingle();
+  return !error && !!data;
+}
+
+function apiAuthMiddleware(req, res, next) {
+  validateApiToken(req)
+    .then((valid) => {
+      if (valid) return next();
+      res.status(401).json({ error: "Token de API inválido ou expirado" });
+    })
+    .catch((err) => {
+      console.error("[apiAuth] error:", err);
+      res.status(500).json({ error: "Erro ao validar token" });
+    });
+}
+
+// ---- API Pacientes (consumidores externos) ----
+app.get("/api/patients", apiAuthMiddleware, async (req, res) => {
+  try {
+    const supabase = getSupabaseAdmin();
+    if (!supabase) return res.status(500).json({ error: "Supabase não configurado" });
+
+    const id = req.query.id;
+    const page = Math.max(1, parseInt(req.query.page || "1", 10));
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit || "20", 10)));
+    const search = (req.query.search || "").trim();
+    const offset = (page - 1) * limit;
+
+    if (id) {
+      const { data, error } = await supabase.from("patients").select("*").eq("id", id).maybeSingle();
+      if (error) {
+        console.error("[patients] fetch error:", error);
+        return res.status(500).json({ error: "Erro ao buscar paciente" });
+      }
+      if (!data) return res.status(404).json({ error: "Paciente não encontrado" });
+      return res.json(data);
+    }
+
+    let query = supabase
+      .from("patients")
+      .select("id, name, cpf, email, phone, birth_date, status, created_at, updated_at", { count: "exact" });
+
+    if (search) {
+      const term = search.replace(/[%_]/g, "\\$&");
+      query = query.or(`name.ilike.%${term}%,cpf.ilike.%${term}%,email.ilike.%${term}%`);
+    }
+
+    const { data, error, count } = await query
+      .order("name", { ascending: true })
+      .range(offset, offset + limit - 1);
+
+    if (error) {
+      console.error("[patients] list error:", error);
+      return res.status(500).json({ error: "Erro ao listar pacientes" });
+    }
+
+    return res.json({
+      data: data || [],
+      meta: { page, limit, total: count || 0, total_pages: Math.ceil((count || 0) / limit) },
+    });
+  } catch (err) {
+    console.error("[patients] error:", err);
+    res.status(500).json({ error: "Erro interno no servidor" });
+  }
+});
+
+app.post("/api/patients", apiAuthMiddleware, async (req, res) => {
+  try {
+    const supabase = getSupabaseAdmin();
+    if (!supabase) return res.status(500).json({ error: "Supabase não configurado" });
+
+    const body = req.body || {};
+    const name = body.name;
+    if (!name || typeof name !== "string" || !name.trim()) {
+      return res.status(400).json({ error: "Campo 'name' é obrigatório" });
+    }
+
+    const insert = {
+      name: name.trim(),
+      cpf: body.cpf ?? null,
+      rg: body.rg ?? null,
+      email: body.email ?? null,
+      phone: body.phone ?? null,
+      birth_date: body.birth_date ?? null,
+      gender: body.gender ?? null,
+      marital_status: body.marital_status ?? null,
+      profession: body.profession ?? null,
+      notes: body.notes ?? null,
+      status: body.status ?? "active",
+      address_cep: body.address_cep ?? null,
+      address_city: body.address_city ?? null,
+      address_neighborhood: body.address_neighborhood ?? null,
+      address_street: body.address_street ?? null,
+      address_number: body.address_number ?? null,
+      address_complement: body.address_complement ?? null,
+      address_state: body.address_state ?? null,
+      plan_id: body.plan_id ?? null,
+    };
+
+    const { data, error } = await supabase.from("patients").insert(insert).select().single();
+
+    if (error) {
+      if (error.code === "23505") return res.status(409).json({ error: "CPF ou e-mail já cadastrado" });
+      console.error("[patients] create error:", error);
+      return res.status(500).json({ error: "Erro ao criar paciente", details: error.message });
+    }
+    return res.status(201).json(data);
+  } catch (err) {
+    console.error("[patients] error:", err);
+    res.status(500).json({ error: "Erro interno no servidor" });
+  }
+});
+
+app.put("/api/patients", apiAuthMiddleware, async (req, res) => {
+  try {
+    const supabase = getSupabaseAdmin();
+    if (!supabase) return res.status(500).json({ error: "Supabase não configurado" });
+
+    const id = req.query.id;
+    if (!id) return res.status(400).json({ error: "Parâmetro 'id' é obrigatório para atualização" });
+
+    const body = req.body || {};
+    const allowed = [
+      "name", "cpf", "rg", "email", "phone", "birth_date", "gender", "marital_status",
+      "profession", "notes", "status", "address_cep", "address_city", "address_neighborhood",
+      "address_street", "address_number", "address_complement", "address_state", "plan_id",
+    ];
+    const update = {};
+    for (const k of allowed) {
+      if (body[k] !== undefined) update[k] = body[k];
+    }
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ error: "Nenhum campo para atualizar" });
+    }
+
+    const { data, error } = await supabase.from("patients").update(update).eq("id", id).select().maybeSingle();
+
+    if (error) {
+      if (error.code === "23505") return res.status(409).json({ error: "CPF ou e-mail já cadastrado" });
+      console.error("[patients] update error:", error);
+      return res.status(500).json({ error: "Erro ao atualizar paciente", details: error.message });
+    }
+    if (!data) return res.status(404).json({ error: "Paciente não encontrado" });
+    return res.json(data);
+  } catch (err) {
+    console.error("[patients] error:", err);
+    res.status(500).json({ error: "Erro interno no servidor" });
+  }
+});
+
+app.delete("/api/patients", apiAuthMiddleware, async (req, res) => {
+  try {
+    const supabase = getSupabaseAdmin();
+    if (!supabase) return res.status(500).json({ error: "Supabase não configurado" });
+
+    const id = req.query.id;
+    if (!id) return res.status(400).json({ error: "Parâmetro 'id' é obrigatório para exclusão" });
+
+    const { data: deleted, error } = await supabase.from("patients").delete().eq("id", id).select("id");
+
+    if (error) {
+      console.error("[patients] delete error:", error);
+      return res.status(500).json({ error: "Erro ao excluir paciente", details: error.message });
+    }
+    if (!deleted || deleted.length === 0) return res.status(404).json({ error: "Paciente não encontrado" });
+    return res.json({ message: "Paciente excluído com sucesso" });
+  } catch (err) {
+    console.error("[patients] error:", err);
+    res.status(500).json({ error: "Erro interno no servidor" });
+  }
+});
+
+// ---- API Receitas (consumidores externos) ----
+app.get("/api/revenue", apiAuthMiddleware, async (req, res) => {
+  try {
+    const supabase = getSupabaseAdmin();
+    if (!supabase) return res.status(500).json({ error: "Supabase não configurado" });
+
+    const id = req.query.id;
+    const page = Math.max(1, parseInt(req.query.page || "1", 10));
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit || "20", 10)));
+    const search = (req.query.search || "").trim();
+    const offset = (page - 1) * limit;
+
+    if (id) {
+      const { data, error } = await supabase.from("revenue").select("*").eq("id", id).maybeSingle();
+      if (error) {
+        console.error("[revenue] fetch error:", error);
+        return res.status(500).json({ error: "Erro ao buscar receita" });
+      }
+      if (!data) return res.status(404).json({ error: "Receita não encontrada" });
+      return res.json(data);
+    }
+
+    let query = supabase
+      .from("revenue")
+      .select("id, amount, description, revenue_date, status, patient_id, patient_name, category_id, created_at, updated_at", { count: "exact" });
+
+    if (search) {
+      const term = search.replace(/[%_]/g, "\\$&");
+      query = query.or(`description.ilike.%${term}%,patient_name.ilike.%${term}%`);
+    }
+
+    const { data, error, count } = await query
+      .order("revenue_date", { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) {
+      console.error("[revenue] list error:", error);
+      return res.status(500).json({ error: "Erro ao listar receitas" });
+    }
+
+    return res.json({
+      data: data || [],
+      meta: { page, limit, total: count || 0, total_pages: Math.ceil((count || 0) / limit) },
+    });
+  } catch (err) {
+    console.error("[revenue] error:", err);
+    res.status(500).json({ error: "Erro interno no servidor" });
+  }
+});
+
+app.post("/api/revenue", apiAuthMiddleware, async (req, res) => {
+  try {
+    const supabase = getSupabaseAdmin();
+    if (!supabase) return res.status(500).json({ error: "Supabase não configurado" });
+
+    const body = req.body || {};
+    const amount = body.amount;
+    if (amount === undefined || typeof amount !== "number" || amount < 0) {
+      return res.status(400).json({ error: "Campo 'amount' é obrigatório e deve ser um número >= 0" });
+    }
+
+    const insert = {
+      amount,
+      description: body.description ?? "",
+      revenue_date: body.revenue_date ?? new Date().toISOString().slice(0, 10),
+      status: body.status ?? "pending",
+      patient_id: body.patient_id ?? null,
+      patient_name: body.patient_name ?? null,
+      category_id: body.category_id ?? null,
+    };
+
+    const { data, error } = await supabase.from("revenue").insert(insert).select().single();
+
+    if (error) {
+      console.error("[revenue] create error:", error);
+      return res.status(500).json({ error: "Erro ao criar receita", details: error.message });
+    }
+    return res.status(201).json(data);
+  } catch (err) {
+    console.error("[revenue] error:", err);
+    res.status(500).json({ error: "Erro interno no servidor" });
+  }
+});
+
+app.put("/api/revenue", apiAuthMiddleware, async (req, res) => {
+  try {
+    const supabase = getSupabaseAdmin();
+    if (!supabase) return res.status(500).json({ error: "Supabase não configurado" });
+
+    const id = req.query.id;
+    if (!id) return res.status(400).json({ error: "Parâmetro 'id' é obrigatório para atualização" });
+
+    const body = req.body || {};
+    const allowed = ["amount", "description", "revenue_date", "status", "patient_id", "patient_name", "category_id"];
+    const update = {};
+    for (const k of allowed) {
+      if (body[k] !== undefined) update[k] = body[k];
+    }
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ error: "Nenhum campo para atualizar" });
+    }
+
+    const { data, error } = await supabase.from("revenue").update(update).eq("id", id).select().maybeSingle();
+
+    if (error) {
+      console.error("[revenue] update error:", error);
+      return res.status(500).json({ error: "Erro ao atualizar receita", details: error.message });
+    }
+    if (!data) return res.status(404).json({ error: "Receita não encontrada" });
+    return res.json(data);
+  } catch (err) {
+    console.error("[revenue] error:", err);
+    res.status(500).json({ error: "Erro interno no servidor" });
+  }
+});
+
+app.delete("/api/revenue", apiAuthMiddleware, async (req, res) => {
+  try {
+    const supabase = getSupabaseAdmin();
+    if (!supabase) return res.status(500).json({ error: "Supabase não configurado" });
+
+    const id = req.query.id;
+    if (!id) return res.status(400).json({ error: "Parâmetro 'id' é obrigatório para exclusão" });
+
+    const { data: deleted, error } = await supabase.from("revenue").delete().eq("id", id).select("id");
+
+    if (error) {
+      console.error("[revenue] delete error:", error);
+      return res.status(500).json({ error: "Erro ao excluir receita", details: error.message });
+    }
+    if (!deleted || deleted.length === 0) return res.status(404).json({ error: "Receita não encontrada" });
+    return res.json({ message: "Receita excluída com sucesso" });
+  } catch (err) {
+    console.error("[revenue] error:", err);
+    res.status(500).json({ error: "Erro interno no servidor" });
+  }
+});
+
+// ---- API Despesas (consumidores externos) ----
+app.get("/api/expenses", apiAuthMiddleware, async (req, res) => {
+  try {
+    const supabase = getSupabaseAdmin();
+    if (!supabase) return res.status(500).json({ error: "Supabase não configurado" });
+
+    const id = req.query.id;
+    const page = Math.max(1, parseInt(req.query.page || "1", 10));
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit || "20", 10)));
+    const search = (req.query.search || "").trim();
+    const offset = (page - 1) * limit;
+
+    if (id) {
+      const { data, error } = await supabase.from("expenses").select("*").eq("id", id).maybeSingle();
+      if (error) {
+        console.error("[expenses] fetch error:", error);
+        return res.status(500).json({ error: "Erro ao buscar despesa" });
+      }
+      if (!data) return res.status(404).json({ error: "Despesa não encontrada" });
+      return res.json(data);
+    }
+
+    let query = supabase
+      .from("expenses")
+      .select("id, amount, description, expense_date, status, patient_id, patient_name, category_id, created_at, updated_at", { count: "exact" });
+
+    if (search) {
+      const term = search.replace(/[%_]/g, "\\$&");
+      query = query.or(`description.ilike.%${term}%,patient_name.ilike.%${term}%`);
+    }
+
+    const { data, error, count } = await query
+      .order("expense_date", { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) {
+      console.error("[expenses] list error:", error);
+      return res.status(500).json({ error: "Erro ao listar despesas" });
+    }
+
+    return res.json({
+      data: data || [],
+      meta: { page, limit, total: count || 0, total_pages: Math.ceil((count || 0) / limit) },
+    });
+  } catch (err) {
+    console.error("[expenses] error:", err);
+    res.status(500).json({ error: "Erro interno no servidor" });
+  }
+});
+
+app.post("/api/expenses", apiAuthMiddleware, async (req, res) => {
+  try {
+    const supabase = getSupabaseAdmin();
+    if (!supabase) return res.status(500).json({ error: "Supabase não configurado" });
+
+    const body = req.body || {};
+    const amount = body.amount;
+    if (amount === undefined || typeof amount !== "number" || amount < 0) {
+      return res.status(400).json({ error: "Campo 'amount' é obrigatório e deve ser um número >= 0" });
+    }
+
+    const insert = {
+      amount,
+      description: body.description ?? "",
+      expense_date: body.expense_date ?? new Date().toISOString().slice(0, 10),
+      status: body.status ?? "pending",
+      patient_id: body.patient_id ?? null,
+      patient_name: body.patient_name ?? null,
+      category_id: body.category_id ?? null,
+    };
+
+    const { data, error } = await supabase.from("expenses").insert(insert).select().single();
+
+    if (error) {
+      console.error("[expenses] create error:", error);
+      return res.status(500).json({ error: "Erro ao criar despesa", details: error.message });
+    }
+    return res.status(201).json(data);
+  } catch (err) {
+    console.error("[expenses] error:", err);
+    res.status(500).json({ error: "Erro interno no servidor" });
+  }
+});
+
+app.put("/api/expenses", apiAuthMiddleware, async (req, res) => {
+  try {
+    const supabase = getSupabaseAdmin();
+    if (!supabase) return res.status(500).json({ error: "Supabase não configurado" });
+
+    const id = req.query.id;
+    if (!id) return res.status(400).json({ error: "Parâmetro 'id' é obrigatório para atualização" });
+
+    const body = req.body || {};
+    const allowed = ["amount", "description", "expense_date", "status", "patient_id", "patient_name", "category_id"];
+    const update = {};
+    for (const k of allowed) {
+      if (body[k] !== undefined) update[k] = body[k];
+    }
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ error: "Nenhum campo para atualizar" });
+    }
+
+    const { data, error } = await supabase.from("expenses").update(update).eq("id", id).select().maybeSingle();
+
+    if (error) {
+      console.error("[expenses] update error:", error);
+      return res.status(500).json({ error: "Erro ao atualizar despesa", details: error.message });
+    }
+    if (!data) return res.status(404).json({ error: "Despesa não encontrada" });
+    return res.json(data);
+  } catch (err) {
+    console.error("[expenses] error:", err);
+    res.status(500).json({ error: "Erro interno no servidor" });
+  }
+});
+
+app.delete("/api/expenses", apiAuthMiddleware, async (req, res) => {
+  try {
+    const supabase = getSupabaseAdmin();
+    if (!supabase) return res.status(500).json({ error: "Supabase não configurado" });
+
+    const id = req.query.id;
+    if (!id) return res.status(400).json({ error: "Parâmetro 'id' é obrigatório para exclusão" });
+
+    const { data: deleted, error } = await supabase.from("expenses").delete().eq("id", id).select("id");
+
+    if (error) {
+      console.error("[expenses] delete error:", error);
+      return res.status(500).json({ error: "Erro ao excluir despesa", details: error.message });
+    }
+    if (!deleted || deleted.length === 0) return res.status(404).json({ error: "Despesa não encontrada" });
+    return res.json({ message: "Despesa excluída com sucesso" });
+  } catch (err) {
+    console.error("[expenses] error:", err);
+    res.status(500).json({ error: "Erro interno no servidor" });
   }
 });
 
