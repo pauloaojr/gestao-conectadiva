@@ -1582,7 +1582,7 @@ const Integrations = () => {
                 <Input
                   id="backend-url"
                   type="url"
-                  placeholder="Ex.: https://seu-backend.railway.app ou http://localhost:3001"
+                  placeholder="Ex.: https://seu-backend.railway.app ou http://localhost:3021"
                   value={emailConfig.backendUrl ?? ""}
                   onChange={(e) =>
                     setEmailConfig((prev) => ({ ...prev, backendUrl: e.target.value || null }))

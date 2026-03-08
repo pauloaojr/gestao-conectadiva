@@ -20,7 +20,7 @@ npm install
 npm start
 ```
 
-O servidor sobe em `http://localhost:3001`. Na tela de Integrações → Email, use a URL **http://localhost:3001** no campo "URL do backend de e-mail".
+O servidor sobe em `http://localhost:3021`. Na tela de Integrações → Email, use a URL **http://localhost:3021** no campo "URL do backend de e-mail".
 
 ## Deploy (Railway, Render, VPS etc.)
 
