@@ -72,7 +72,7 @@ npx supabase functions deploy create-user
 npx supabase functions deploy reset-user-password
 ```
 
-> **Nota:** As APIs de Pacientes, Receitas e Despesas foram migradas para o Backend (`/api/patients`, `/api/revenue`, `/api/expenses`). As Edge Functions `api-patients`, `api-revenue` e `api-expenses` podem ser descontinuadas.
+> **Nota:** As APIs de Pacientes, Receitas e Despesas estão no Backend (`/api/patients`, `/api/revenue`, `/api/expenses`). As Edge Functions correspondentes foram removidas.
 
 #### Notas sobre Edge Functions:
 - Certifique-se de configurar as variáveis de ambiente necessárias no dashboard do Supabase (**Settings > API > Edge Functions**).

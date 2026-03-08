@@ -23,12 +23,3 @@ verify_jwt = false
 
 [functions.trigger-notification-scheduler]
 verify_jwt = false
-
-[functions.api-patients]
-verify_jwt = false
-
-[functions.api-revenue]
-verify_jwt = false
-
-[functions.api-expenses]
-verify_jwt = false
