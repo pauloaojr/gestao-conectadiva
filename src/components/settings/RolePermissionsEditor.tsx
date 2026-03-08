@@ -25,6 +25,7 @@ const RESOURCE_FIELDS: { key: keyof UserPermissions; label: string }[] = [
   { key: 'scheduleManagement', label: 'Gerenciamento de Horários' },
   { key: 'serviceManagement', label: 'Gerenciamento de Serviços' },
   { key: 'integrations', label: 'Integrações' },
+  { key: 'api', label: 'API' },
   { key: 'audit', label: 'Auditoria' },
 ];
 

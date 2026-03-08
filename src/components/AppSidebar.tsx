@@ -17,7 +17,8 @@ import {
   Wallet,
   DollarSign,
   PlugZap,
-  FileSearch
+  FileSearch,
+  KeyRound,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -152,6 +153,12 @@ const systemMenuItems = [
     url: "/integracoes",
     icon: PlugZap,
     permission: 'integrations' as const,
+  },
+  {
+    title: "API",
+    url: "/sistema/api",
+    icon: KeyRound,
+    permission: 'api' as const,
   },
 ];
 

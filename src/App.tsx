@@ -32,6 +32,7 @@ import Revenue from "./pages/Revenue";
 import Expenses from "./pages/Expenses";
 import FinancialConfigPage from "./pages/FinancialConfigPage";
 import Integrations from "./pages/Integrations";
+import ApiManagement from "./pages/ApiManagement";
 import AuditLog from "./pages/AuditLog";
 import SetPasswordFromRecovery from "./pages/SetPasswordFromRecovery";
 import { RecoveryLinkExpired } from "./components/RecoveryLinkExpired";
@@ -174,6 +175,14 @@ function AppContent() {
                             element={
                               <ProtectedRoute requiredPermission="integrations">
                                 <Integrations />
+                              </ProtectedRoute>
+                            }
+                          />
+                          <Route
+                            path="/sistema/api"
+                            element={
+                              <ProtectedRoute requiredPermission="api">
+                                <ApiManagement />
                               </ProtectedRoute>
                             }
                           />

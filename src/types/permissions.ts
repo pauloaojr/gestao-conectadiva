@@ -14,6 +14,7 @@ export type GranularResource =
   | 'scheduleManagement'
   | 'serviceManagement'
   | 'integrations'
+  | 'api'
   | 'audit';
 
 /** Abas de Configurações para permissão por aba */
@@ -72,6 +73,7 @@ export interface PermissionsLike {
   scheduleManagement?: PermissionLevel | boolean;
   serviceManagement?: PermissionLevel | boolean;
   integrations?: PermissionLevel | boolean;
+  api?: PermissionLevel | boolean;
   audit?: PermissionLevel | boolean;
   settingsTabs?: Partial<Record<SettingsTabId, PermissionLevel>>;
 }
@@ -98,6 +100,7 @@ export function getDefaultGranularPermissions(): Record<GranularResource, Permis
     scheduleManagement: 'none',
     serviceManagement: 'none',
     integrations: 'none',
+    api: 'none',
     audit: 'none',
     settingsTabs: levels,
   };
@@ -126,6 +129,7 @@ export function normalizePermissionsForForm(
     scheduleManagement: normalizePermissionLevel((raw as Record<string, unknown>).scheduleManagement ?? 'none'),
     serviceManagement: normalizePermissionLevel((raw as Record<string, unknown>).serviceManagement ?? 'none'),
     integrations: normalizePermissionLevel((raw as Record<string, unknown>).integrations ?? 'none'),
+    api: normalizePermissionLevel((raw as Record<string, unknown>).api ?? 'none'),
     audit: normalizePermissionLevel((raw as Record<string, unknown>).audit ?? 'none'),
     settingsTabs: tabs,
   } as PermissionsLike & { dashboard: boolean; reports: boolean; financial?: boolean };
@@ -141,7 +145,7 @@ const LEVEL_LABEL: Record<PermissionLevel, string> = {
 /** Conta quantos recursos/abas têm permissão diferente de "none" */
 export function countNonNonePermissions(permissions: PermissionsLike): number {
   let n = 0;
-  for (const r of ['patients', 'medicalRecords', 'schedule', 'settings', 'userManagement', 'scheduleManagement', 'serviceManagement', 'integrations', 'audit'] as const) {
+  for (const r of ['patients', 'medicalRecords', 'schedule', 'settings', 'userManagement', 'scheduleManagement', 'serviceManagement', 'integrations', 'api', 'audit'] as const) {
     if (normalizePermissionLevel((permissions as Record<string, unknown>)[r]) !== 'none') n++;
   }
   if (permissions.settingsTabs) {
@@ -160,7 +164,7 @@ export function formatPermissionsSummary(
   maxItems = 5
 ): string {
   const parts: string[] = [];
-  for (const r of ['patients', 'medicalRecords', 'schedule', 'settings', 'userManagement', 'scheduleManagement', 'serviceManagement', 'integrations', 'audit'] as const) {
+  for (const r of ['patients', 'medicalRecords', 'schedule', 'settings', 'userManagement', 'scheduleManagement', 'serviceManagement', 'integrations', 'api', 'audit'] as const) {
     const level = normalizePermissionLevel((permissions as Record<string, unknown>)[r]);
     if (level !== 'none') parts.push(`${resourceLabels[r] ?? r}: ${LEVEL_LABEL[level]}`);
   }

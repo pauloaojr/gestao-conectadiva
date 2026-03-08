@@ -21,6 +21,7 @@ const RESOURCE_LABELS: Record<string, string> = {
   scheduleManagement: 'Horários',
   serviceManagement: 'Serviços',
   integrations: 'Integrações',
+  api: 'API',
   audit: 'Auditoria',
 };
 

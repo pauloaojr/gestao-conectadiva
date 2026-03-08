@@ -57,6 +57,9 @@ npx supabase functions deploy create-user
 
 # Deploy da função de reset de senha
 npx supabase functions deploy reset-user-password
+
+# Deploy da API REST de Pacientes (CRUD para consumidores externos)
+npx supabase functions deploy api-patients
 ```
 
 #### Notas sobre Edge Functions:

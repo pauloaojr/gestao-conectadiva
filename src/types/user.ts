@@ -62,6 +62,7 @@ export interface UserPermissions {
   scheduleManagement?: PermissionLevel | boolean;
   serviceManagement?: PermissionLevel | boolean;
   integrations?: PermissionLevel | boolean;
+  api?: PermissionLevel | boolean;
   audit?: PermissionLevel | boolean;
   /** Configurações por aba (apenas funções customizadas) */
   settingsTabs?: Partial<Record<SettingsTabId, PermissionLevel>>;
@@ -79,6 +80,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, UserPermissions> = {
     scheduleManagement: true,
     serviceManagement: true,
     integrations: true,
+    api: true,
     audit: true,
     financial: true,
   },
@@ -93,6 +95,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, UserPermissions> = {
     scheduleManagement: true,
     serviceManagement: true,
     integrations: false,
+    api: false,
     audit: false,
     financial: true,
   },
@@ -107,6 +110,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, UserPermissions> = {
     scheduleManagement: false,
     serviceManagement: false,
     integrations: false,
+    api: false,
     audit: false,
     financial: false,
   },
