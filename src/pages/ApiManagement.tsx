@@ -15,12 +15,18 @@ import {
 import { useApiTokens } from "@/hooks/useApiTokens";
 import { useAuth } from "@/contexts/AuthContext";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   KeyRound,
   Plus,
   Loader2,
   Copy,
   Check,
   FileText,
+  ChevronRight,
 } from "lucide-react";
 import { API_MENUS } from "@/lib/apiDocs";
 import { ApiEndpointDoc } from "@/components/ApiEndpointDoc";
@@ -174,33 +180,41 @@ const ApiManagement = () => {
                 Documentação dos endpoints REST. Todas as APIs (Pacientes, Receitas, Despesas) usam o Backend.
                 Configure <code className="text-xs bg-muted px-1 rounded">VITE_BACKEND_URL</code> para exibir a URL completa da API Pacientes.
               </p>
-              <div className="space-y-6">
+              <div className="space-y-2">
                 {API_MENUS.map((menu) => {
                   const baseUrl =
                     menu.baseUrlKey === "backend"
                       ? (import.meta.env.VITE_BACKEND_URL ?? "")
                       : (import.meta.env.VITE_SUPABASE_URL ?? "");
                   return (
-                    <div key={menu.id} className="space-y-3">
-                      <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground border-b pb-2">
-                        {menu.label}
+                    <Collapsible key={menu.id} defaultOpen={false} className="rounded-lg border">
+                      <CollapsibleTrigger className="flex w-full items-center gap-2 px-4 py-3 text-left hover:bg-muted/50 transition-colors rounded-lg [&[data-state=open]>svg.chevron]:rotate-90">
+                        <ChevronRight className="chevron h-4 w-4 shrink-0 transition-transform text-muted-foreground" />
+                        <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                          {menu.label}
+                        </span>
                         {menu.baseUrlKey === "backend" && (
-                          <span className="ml-2 text-xs font-normal normal-case">(Backend)</span>
+                          <span className="text-xs font-normal normal-case text-muted-foreground/80">(Backend)</span>
                         )}
                         {menu.baseUrlKey === "supabase" && (
-                          <span className="ml-2 text-xs font-normal normal-case">(Supabase Edge Functions)</span>
+                          <span className="text-xs font-normal normal-case text-muted-foreground/80">(Supabase Edge Functions)</span>
                         )}
-                      </h3>
-                      <div className="space-y-3">
-                        {menu.endpoints.map((ep, i) => (
-                          <ApiEndpointDoc
-                            key={`${menu.id}-${ep.method}-${i}`}
-                            endpoint={ep}
-                            baseUrl={baseUrl}
-                          />
-                        ))}
-                      </div>
-                    </div>
+                        <span className="ml-auto text-xs text-muted-foreground">
+                          {menu.endpoints.length} endpoint{menu.endpoints.length !== 1 ? "s" : ""}
+                        </span>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div className="space-y-3 px-4 pb-4 pt-1 border-t">
+                          {menu.endpoints.map((ep, i) => (
+                            <ApiEndpointDoc
+                              key={`${menu.id}-${ep.method}-${i}`}
+                              endpoint={ep}
+                              baseUrl={baseUrl}
+                            />
+                          ))}
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
                   );
                 })}
               </div>
