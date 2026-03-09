@@ -6,6 +6,7 @@ import {
   NotificationService,
   NotificationTiming,
 } from "@/hooks/useNotificationSettings";
+import { NotificationMediaItem, serializeNotificationMedia } from "@/lib/notificationMedia";
 
 export type DraftAction =
   | { type: "replace"; rule: NotificationRule }
@@ -18,6 +19,7 @@ export type DraftAction =
   | { type: "set_message"; value: string }
   | { type: "append_placeholder"; value: string }
   | { type: "set_media_url"; value: string }
+  | { type: "set_media_items"; value: NotificationMediaItem[] }
   | { type: "set_hours"; value: number }
   | { type: "set_timing"; value: NotificationTiming }
   | { type: "set_send_time"; value: string };
@@ -57,6 +59,8 @@ export function draftReducer(
       };
     case "set_media_url":
       return { ...state, mediaUrl: action.value };
+    case "set_media_items":
+      return { ...state, mediaUrl: serializeNotificationMedia(action.value) };
     case "set_hours":
       return { ...state, hours: action.value };
     case "set_timing":

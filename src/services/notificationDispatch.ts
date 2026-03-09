@@ -9,6 +9,12 @@ import {
   parseDateTimeInTimezone,
   withRuntimePlaceholders,
 } from "@/lib/notificationRuntimePlaceholders";
+import {
+  parseNotificationMediaUrl,
+  getFirstMediaItem,
+  getEvolutionMediaType,
+  normalizeMediaForEvolutionApi,
+} from "@/lib/notificationMedia";
 import { normalizeFinancialContextPlaceholders } from "@/lib/financialNotificationPlaceholders";
 import { addHours, differenceInMinutes } from "date-fns";
 
@@ -398,7 +404,10 @@ async function sendEmail(
       toEmail: recipientEmail,
       subject: `${rule.name} - Clinica Pro`,
       text: message,
-      mediaUrl: rule.mediaUrl || null,
+      mediaUrl: (() => {
+        const items = parseNotificationMediaUrl(rule.mediaUrl);
+        return items.length > 0 ? items[0].url : (rule.mediaUrl || null);
+      })(),
     }),
   });
 
@@ -457,7 +466,13 @@ async function resolveDefaultEvolutionInstance(
   return String(fallback);
 }
 
-async function sendWhatsApp(message: string, recipientPhone: string) {
+type WhatsAppMediaItem = { url: string; name: string; type: string } | null;
+
+async function sendWhatsApp(
+  message: string,
+  recipientPhone: string,
+  firstMedia: WhatsAppMediaItem
+) {
   const { data, error } = await supabase
     .from("evolution_api_config")
     .select("enabled, base_url, token, default_phone_country_code")
@@ -483,12 +498,41 @@ async function sendWhatsApp(message: string, recipientPhone: string) {
   }
 
   const base = evoCfg.base_url.replace(/\/+$/, "");
+  const headers = {
+    apikey: evoCfg.token,
+    "Content-Type": "application/json",
+  };
+
+  if (firstMedia?.url) {
+    const mediatype = getEvolutionMediaType(firstMedia);
+    const mimetype = firstMedia.type || (mediatype === "image" ? "image/jpeg" : "application/octet-stream");
+    const fileName = firstMedia.name?.trim() || (mediatype === "image" ? "image.jpg" : "arquivo");
+    const mediaValue = normalizeMediaForEvolutionApi(firstMedia.url);
+    const response = await fetch(`${base}/message/sendMedia/${encodeURIComponent(instanceName)}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        number: to,
+        mediatype,
+        mimetype,
+        caption: message ?? "",
+        media: mediaValue,
+        fileName,
+        delay: 1200,
+      }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const detail = body?.message ?? body?.error ?? (typeof body === "object" ? JSON.stringify(body) : String(body));
+      const msg = detail ? `Erro HTTP ${response.status} no envio de mídia WhatsApp: ${detail}` : `Erro HTTP ${response.status} no envio de mídia WhatsApp.`;
+      throw new Error(msg);
+    }
+    return body;
+  }
+
   const response = await fetch(`${base}/message/sendText/${encodeURIComponent(instanceName)}`, {
     method: "POST",
-    headers: {
-      apikey: evoCfg.token,
-      "Content-Type": "application/json",
-    },
+    headers,
     body: JSON.stringify({
       number: to,
       text: message,
@@ -579,8 +623,9 @@ export async function dispatchNotificationEvent(input: DispatchInput) {
                   : "Paciente sem telefone."
               );
             }
+            const firstMedia = getFirstMediaItem(rule.mediaUrl);
             const result = await executeWithRetry(() =>
-              sendWhatsApp(message, recipient.phone)
+              sendWhatsApp(message, recipient.phone, firstMedia)
             );
             await logDispatch({
               notificationSettingsId: rule.id ?? null,

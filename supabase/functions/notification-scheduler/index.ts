@@ -45,6 +45,58 @@ type RuleRow = {
   send_time: string | null;
 };
 
+/** Retorna a primeira URL de mídia (media_url pode ser URL única ou JSON array). */
+function getFirstMediaUrl(mediaUrl: string | null): string | null {
+  const raw = (mediaUrl ?? "").trim();
+  if (!raw) return null;
+  if (raw.startsWith("[")) {
+    try {
+      const arr = JSON.parse(raw) as unknown[];
+      const first = Array.isArray(arr) && arr[0] && typeof (arr[0] as { url?: string }).url === "string"
+        ? (arr[0] as { url: string }).url
+        : null;
+      return first;
+    } catch {
+      return raw;
+    }
+  }
+  return raw;
+}
+
+type MediaItem = { url: string; name: string; type: string };
+
+function getFirstMediaItem(mediaUrl: string | null): MediaItem | null {
+  const raw = (mediaUrl ?? "").trim();
+  if (!raw) return null;
+  if (raw.startsWith("[")) {
+    try {
+      const arr = JSON.parse(raw) as unknown[];
+      const first = Array.isArray(arr) && arr[0] && typeof (arr[0] as MediaItem).url === "string"
+        ? (arr[0] as MediaItem)
+        : null;
+      return first ? { url: first.url, name: first.name || "", type: first.type || "image" } : null;
+    } catch {
+      return { url: raw, name: "", type: "image" };
+    }
+  }
+  return { url: raw, name: "", type: "image" };
+}
+
+function getEvolutionMediaType(item: MediaItem): "image" | "video" | "document" {
+  const t = (item.type || "").toLowerCase();
+  const n = (item.name || "").toLowerCase();
+  if (t.startsWith("image/") || /\.(jpe?g|png|gif|webp|bmp|svg)$/.test(n)) return "image";
+  if (t.startsWith("video/") || /\.(mp4|webm|ogg|mov|avi)$/.test(n)) return "video";
+  return "document";
+}
+
+/** Data URL pode causar 400; envia só o base64 para Evolution API. */
+function normalizeMediaForEvolutionApi(mediaUrl: string): string {
+  const s = mediaUrl.trim();
+  const match = /^data:[^;]+;base64,(.+)$/s.exec(s);
+  return match ? match[1].trim() : s;
+}
+
 function jsonResponse(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -276,7 +328,7 @@ async function sendEmail(
       toEmail: recipientEmail,
       subject: `${rule.name} - Clinica Pro`,
       text: message,
-      mediaUrl: rule.media_url ?? null,
+      mediaUrl: getFirstMediaUrl(rule.media_url),
     }),
   });
 
@@ -332,7 +384,8 @@ async function resolveDefaultEvolutionInstance(
 async function sendWhatsApp(
   admin: ReturnType<typeof createClient>,
   message: string,
-  recipientPhone: string
+  recipientPhone: string,
+  mediaUrl: string | null
 ) {
   const { data, error } = await admin
     .from("evolution_api_config")
@@ -352,14 +405,44 @@ async function sendWhatsApp(
   const to = normalizePhone(recipientPhone, data.default_phone_country_code || "55");
   if (!to) throw new Error("Telefone do destinatário inválido.");
 
+  const base = data.base_url.replace(/\/+$/, "");
+  const headers = { apikey: data.token, "Content-Type": "application/json" };
+  const firstMedia = getFirstMediaItem(mediaUrl);
+
+  if (firstMedia?.url) {
+    const mediatype = getEvolutionMediaType(firstMedia);
+    const mimetype = firstMedia.type || (mediatype === "image" ? "image/jpeg" : "application/octet-stream");
+    const fileName = firstMedia.name?.trim() || (mediatype === "image" ? "image.jpg" : "arquivo");
+    const mediaValue = normalizeMediaForEvolutionApi(firstMedia.url);
+    const res = await fetch(
+      `${base}/message/sendMedia/${encodeURIComponent(instanceName)}`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          number: to,
+          mediatype,
+          mimetype,
+          caption: message ?? "",
+          media: mediaValue,
+          fileName,
+          delay: 1200,
+        }),
+      }
+    );
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const detail = body?.message ?? body?.error ?? (typeof body === "object" ? JSON.stringify(body) : String(body));
+      throw new Error(detail ? `Erro HTTP ${res.status} ao enviar mídia WhatsApp: ${detail}` : `Erro HTTP ${res.status} ao enviar mídia WhatsApp.`);
+    }
+    return body;
+  }
+
   const res = await fetch(
-    `${data.base_url.replace(/\/+$/, "")}/message/sendText/${encodeURIComponent(instanceName)}`,
+    `${base}/message/sendText/${encodeURIComponent(instanceName)}`,
     {
       method: "POST",
-      headers: {
-        apikey: data.token,
-        "Content-Type": "application/json",
-      },
+      headers,
       body: JSON.stringify({ number: to, text: message, delay: 1200 }),
     }
   );
@@ -455,7 +538,7 @@ async function dispatchByRule(params: {
 
       if (!recipient.phone) throw new Error("Destinatário sem telefone.");
       const result = await executeWithRetry(() =>
-        sendWhatsApp(admin, message, recipient.phone)
+        sendWhatsApp(admin, message, recipient.phone, rule.media_url ?? null)
       );
       await insertLog(admin, {
         ruleId: rule.id,

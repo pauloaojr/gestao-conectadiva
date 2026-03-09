@@ -29,6 +29,8 @@ import {
   extractTemplateTokens,
   renderTemplatePreview,
 } from "@/components/settings/NotificationSettings.constants";
+import { storageProvider } from "@/lib/storage/storageProvider";
+import { parseNotificationMediaUrl, type NotificationMediaItem } from "@/lib/notificationMedia";
 
 export function NotificationSettings() {
   const { toast } = useToast();
@@ -184,6 +186,35 @@ export function NotificationSettings() {
     dispatchDraft({ type: "append_placeholder", value: placeholder });
   };
 
+  const handleAddMediaFiles = async (files: File[]) => {
+    const current = parseNotificationMediaUrl(draft.mediaUrl);
+    const newItems: NotificationMediaItem[] = [];
+    for (const file of files) {
+      try {
+        const result = await storageProvider.upload({
+          file,
+          path: "notifications/media",
+          module: "notifications",
+        });
+        newItems.push({
+          url: result.url,
+          name: file.name,
+          type: file.type,
+          storage_key: result.key,
+        });
+      } catch (err) {
+        toast({
+          title: "Erro ao enviar mídia",
+          description: err instanceof Error ? err.message : "Falha no upload.",
+          variant: "destructive",
+        });
+      }
+    }
+    if (newItems.length) {
+      dispatchDraft({ type: "set_media_items", value: [...current, ...newItems] });
+    }
+  };
+
   const handleServiceChange = (service: NotificationService) => {
     const firstEvent = EVENT_OPTIONS[service][0].value;
     dispatchDraft({ type: "set_service", service, defaultEvent: firstEvent });
@@ -291,6 +322,7 @@ export function NotificationSettings() {
                 onSave: handleSave,
                 onDuplicate: handleDuplicateRule,
                 onDelete: handleDelete,
+                onAddMediaFiles: handleAddMediaFiles,
               }}
             />
           </div>
