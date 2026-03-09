@@ -15,6 +15,7 @@ import PatientActions from "@/components/PatientActions";
 import ViewPatientModal from "@/components/ViewPatientModal";
 import StatusToggleModal from "@/components/StatusToggleModal";
 import { ViewRecordModal } from "@/components/ViewRecordModal";
+import { PatientAppointmentsModal } from "@/components/PatientAppointmentsModal";
 import { ViewPrescriptionModal } from "@/components/prescriptions/ViewPrescriptionModal";
 import { usePatients } from "@/hooks/usePatients";
 import { usePlans } from "@/hooks/usePlans";
@@ -103,6 +104,10 @@ const Patients = () => {
   // Prescription modal state
   const [selectedPrescription, setSelectedPrescription] = useState<any>(null);
   const [isPrescriptionModalOpen, setIsPrescriptionModalOpen] = useState(false);
+
+  // Schedule summary modal (agendamentos do paciente)
+  const [scheduleModalPatient, setScheduleModalPatient] = useState<PatientUI | null>(null);
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   
   const [filters, setFilters] = useState<FilterState>({
     status: "all",
@@ -299,7 +304,8 @@ const Patients = () => {
   };
 
   const handleScheduleAppointment = (patient: PatientUI) => {
-    navigate(`/agenda?patient=${encodeURIComponent(patient.name)}`);
+    setScheduleModalPatient(patient);
+    setIsScheduleModalOpen(true);
   };
 
   const handleViewMedicalRecord = (patientId: string) => {
@@ -944,6 +950,20 @@ const Patients = () => {
           if (!open) setSelectedPrescription(null);
         }}
       />
+
+      {/* Resumo de agendamentos do paciente */}
+      {scheduleModalPatient && (
+        <PatientAppointmentsModal
+          isOpen={isScheduleModalOpen}
+          onClose={() => {
+            setIsScheduleModalOpen(false);
+            setScheduleModalPatient(null);
+          }}
+          patientId={scheduleModalPatient.id}
+          patientName={scheduleModalPatient.name}
+          appointments={appointments}
+        />
+      )}
     </div>
   );
 };
