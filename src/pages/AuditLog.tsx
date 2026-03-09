@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { NotificationQueueVisibility } from "@/components/NotificationQueueVisibility";
 
 type DispatchLogRow = {
   id: string;
@@ -97,6 +98,7 @@ const EVENT_LABELS: Record<string, string> = {
   conta_vencendo: "Conta vencendo",
   conta_vencida: "Conta vencida",
   pagamento_confirmado: "Pagamento confirmado",
+  aniversario: "Aniversário",
 };
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
@@ -128,6 +130,8 @@ const AuditLog = () => {
   const [recipientSearch, setRecipientSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [ruleFilter, setRuleFilter] = useState<string>("all");
+  const [ruleOptions, setRuleOptions] = useState<{ id: string; name: string }[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [last24hMetrics, setLast24hMetrics] = useState({
     recentTotal: 0,
@@ -205,6 +209,7 @@ const AuditLog = () => {
       if (statusFilter !== "all") q = q.eq("status", statusFilter);
       if (serviceFilter !== "all") q = q.eq("service", serviceFilter);
       if (channelFilter !== "all") q = q.eq("channel", channelFilter);
+      if (ruleFilter !== "all") q = q.eq("notification_settings_id", ruleFilter);
       if (patientSearch.trim()) {
         q = q.ilike("payload_json->>paciente_nome", `%${patientSearch.trim()}%`);
       }
@@ -215,7 +220,7 @@ const AuditLog = () => {
       if (dateTo) q = q.lte("created_at", `${dateTo}T23:59:59`);
       return q;
     },
-    [statusFilter, serviceFilter, channelFilter, patientSearch, recipientSearch, dateFrom, dateTo]
+    [statusFilter, serviceFilter, channelFilter, ruleFilter, patientSearch, recipientSearch, dateFrom, dateTo]
   );
 
   const loadLogs = useCallback(async () => {
@@ -699,6 +704,24 @@ const AuditLog = () => {
     loadMetrics();
   }, [loadMetrics]);
 
+  const loadRuleOptions = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("notification_settings")
+        .select("id, name")
+        .order("name");
+      if (!error && data) {
+        setRuleOptions(data as { id: string; name: string }[]);
+      }
+    } catch {
+      // silencioso
+    }
+  }, []);
+
+  useEffect(() => {
+    loadRuleOptions();
+  }, [loadRuleOptions]);
+
   const handleProcessPending = async () => {
     setIsProcessing(true);
     try {
@@ -775,6 +798,7 @@ const AuditLog = () => {
     setStatusFilter("all");
     setServiceFilter("all");
     setChannelFilter("all");
+    setRuleFilter("all");
     setPatientSearch("");
     setRecipientSearch("");
     setDateFrom("");
@@ -1040,7 +1064,29 @@ const AuditLog = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-8 gap-3">
+                <div className="space-y-1">
+                  <Label>Regra</Label>
+                  <Select
+                    value={ruleFilter}
+                    onValueChange={(value) => {
+                      setRuleFilter(value);
+                      setPage(1);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas</SelectItem>
+                      {ruleOptions.map((r) => (
+                        <SelectItem key={r.id} value={r.id}>
+                          {r.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="space-y-1">
                   <Label>Status</Label>
                   <Select
@@ -1076,6 +1122,7 @@ const AuditLog = () => {
                       <SelectItem value="all">Todos</SelectItem>
                       <SelectItem value="agenda">Agenda</SelectItem>
                       <SelectItem value="financeiro">Financeiro</SelectItem>
+                      <SelectItem value="aniversario">Aniversário</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1146,7 +1193,10 @@ const AuditLog = () => {
             </CardHeader>
 
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 mb-4">
+            <div className="lg:col-span-1">
+              <NotificationQueueVisibility />
+            </div>
             <Card className="border-border/60">
               <CardContent className="py-4">
                 <p className="text-xs text-muted-foreground">Taxa de sucesso (24h)</p>

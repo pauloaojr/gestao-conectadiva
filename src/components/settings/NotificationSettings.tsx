@@ -29,6 +29,7 @@ import {
   extractTemplateTokens,
   renderTemplatePreview,
 } from "@/components/settings/NotificationSettings.constants";
+import { sendTestNotification } from "@/services/notificationDispatch";
 import { storageProvider } from "@/lib/storage/storageProvider";
 import { parseNotificationMediaUrl, type NotificationMediaItem } from "@/lib/notificationMedia";
 
@@ -220,6 +221,32 @@ export function NotificationSettings() {
     dispatchDraft({ type: "set_service", service, defaultEvent: firstEvent });
   };
 
+  const handleSendTest = async (email?: string, phone?: string) => {
+    if (!draft.id) return;
+    const sampleContext = buildSampleContext(establishment?.timezone);
+    const context = sampleContext[draft.service] as Record<string, string>;
+    try {
+      await sendTestNotification({
+        ruleId: draft.id,
+        service: draft.service,
+        eventKey: draft.eventKey,
+        recipient: { email, phone },
+        context,
+      });
+      toast({
+        title: "Teste enviado",
+        description: "Verifique o e-mail e/ou WhatsApp informado.",
+      });
+    } catch (err: unknown) {
+      toast({
+        title: "Erro ao enviar teste",
+        description: err instanceof Error ? err.message : "Não foi possível enviar o teste.",
+        variant: "destructive",
+      });
+      throw err;
+    }
+  };
+
   const handleViewRule = (rule: NotificationRule) => {
     dispatchDraft({ type: "replace", rule });
     setModalMode("view");
@@ -323,6 +350,7 @@ export function NotificationSettings() {
                 onDuplicate: handleDuplicateRule,
                 onDelete: handleDelete,
                 onAddMediaFiles: handleAddMediaFiles,
+                onSendTest: handleSendTest,
               }}
             />
           </div>

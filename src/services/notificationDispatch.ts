@@ -548,8 +548,50 @@ async function sendWhatsApp(
   return body;
 }
 
+async function dispatchViaBackend(input: DispatchInput): Promise<boolean> {
+  const baseUrl = (import.meta.env.VITE_BACKEND_URL ?? "").toString().trim();
+  if (!baseUrl) return false;
+
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) return false;
+
+    const url = `${baseUrl.replace(/\/+$/, "")}/api/notifications/dispatch`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        service: input.service,
+        eventKey: input.eventKey,
+        ruleId: (input as DispatchInput & { ruleId?: string }).ruleId,
+        recipient: input.recipient,
+        context: input.context,
+        dedupeKey: input.dedupeKey,
+      }),
+    });
+
+    if (res.ok) {
+      console.info("[notificações] ✓ Enviado via backend");
+      return true;
+    }
+    console.warn("[dispatch] Backend retornou", res.status, await res.text().catch(() => ""));
+    return false;
+  } catch (e) {
+    console.warn("[dispatch] Erro ao chamar backend:", e);
+    return false;
+  }
+}
+
 export async function dispatchNotificationEvent(input: DispatchInput) {
   try {
+    const usedBackend = await dispatchViaBackend(input);
+    if (usedBackend) return;
+
+    console.info("[notificações] Enviando via frontend (fallback)");
     const rules = await loadActiveRules(input.service, input.eventKey);
     if (rules.length === 0) return;
 
@@ -668,6 +710,32 @@ export async function dispatchNotificationEvent(input: DispatchInput) {
   } catch (error) {
     console.error("dispatchNotificationEvent error:", error);
   }
+}
+
+/** Envia um teste da regra para e-mail e/ou telefone informados. */
+export async function sendTestNotification(params: {
+  ruleId: string;
+  service: NotificationService;
+  eventKey: NotificationEventKey;
+  recipient: { email?: string; phone?: string };
+  context: DispatchContext;
+}): Promise<void> {
+  const { ruleId, service, eventKey, recipient, context } = params;
+  if (!recipient.email?.trim() && !recipient.phone?.trim()) {
+    throw new Error("Informe e-mail ou telefone para o envio de teste.");
+  }
+  const dedupeKey = `teste:${ruleId}:${Date.now()}`;
+  const input: DispatchInput & { ruleId?: string } = {
+    service,
+    eventKey,
+    ruleId,
+    recipient: { email: recipient.email?.trim() || null, phone: recipient.phone?.trim() || null },
+    context,
+    dedupeKey,
+  };
+  const ok = await dispatchViaBackend(input);
+  if (ok) return;
+  throw new Error("Falha ao enviar teste. Verifique Integrações (Evolution API, SMTP) e backend.");
 }
 
 function inWindow(targetDate: Date, now: Date, hours: number, timing: "before" | "after") {

@@ -495,6 +495,30 @@ function apiAuthMiddleware(req, res, next) {
     });
 }
 
+async function notificationsAuthMiddleware(req, res, next) {
+  const apiValid = await validateApiToken(req);
+  if (apiValid) return next();
+
+  const bearer = (req.headers.authorization || "").replace(/^Bearer\s+/i, "").trim();
+  if (bearer) {
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (url && key) {
+      try {
+        const supabaseAuth = createClient(url, key, {
+          auth: { autoRefreshToken: false, persistSession: false },
+        });
+        const { data: { user }, error } = await supabaseAuth.auth.getUser(bearer);
+        if (!error && user) return next();
+      } catch (e) {
+        console.error("[notificationsAuth] JWT validation error:", e.message);
+      }
+    }
+  }
+
+  res.status(401).json({ error: "Não autorizado. Envie Authorization: Bearer <jwt> ou X-API-Key." });
+}
+
 // ---- API Pacientes (consumidores externos) ----
 app.get("/api/patients", apiAuthMiddleware, async (req, res) => {
   try {
@@ -924,6 +948,65 @@ app.delete("/api/expenses", apiAuthMiddleware, async (req, res) => {
   } catch (err) {
     console.error("[expenses] error:", err);
     res.status(500).json({ error: "Erro interno no servidor" });
+  }
+});
+
+const { runDispatch } = require("./notifications/dispatch");
+
+app.post("/api/notifications/dispatch", notificationsAuthMiddleware, async (req, res) => {
+  try {
+    const supabase = getSupabaseAdmin();
+    if (!supabase) return res.status(500).json({ error: "Supabase não configurado" });
+
+    const body = req.body || {};
+    const service = body.service;
+    const eventKey = body.eventKey;
+    const recipient = body.recipient || {};
+    const context = body.context || {};
+    const dedupeKey = body.dedupeKey;
+    const ruleId = body.ruleId;
+
+    if (!service || !eventKey) {
+      return res.status(400).json({
+        error: "Campos obrigatórios: service, eventKey",
+        details: "Envie também recipient e context conforme a documentação.",
+      });
+    }
+
+    const validServices = ["agenda", "financeiro", "aniversario"];
+    if (!validServices.includes(service)) {
+      return res.status(400).json({ error: "service inválido. Use: agenda, financeiro ou aniversario." });
+    }
+
+    const validEvents = [
+      "agendamento_criado", "agendamento_confirmado", "agendamento_cancelado", "lembrete_consulta",
+      "conta_criada", "conta_vencendo", "conta_vencida", "pagamento_confirmado", "aniversario",
+    ];
+    if (!validEvents.includes(eventKey)) {
+      return res.status(400).json({ error: "eventKey inválido." });
+    }
+
+    await runDispatch(supabase, {
+      service,
+      eventKey,
+      ruleId: typeof ruleId === "string" ? ruleId : undefined,
+      recipient: {
+        patientId: recipient.patientId ?? null,
+        attendantId: recipient.attendantId ?? null,
+        email: recipient.email ?? null,
+        phone: recipient.phone ?? null,
+      },
+      context: typeof context === "object" ? context : {},
+      dedupeKey: typeof dedupeKey === "string" ? dedupeKey : undefined,
+    });
+
+    return res.json({ success: true, message: "Dispatch processado." });
+  } catch (err) {
+    console.error("[notifications/dispatch] error:", err);
+    res.status(500).json({
+      error: "Erro ao processar dispatch de notificações.",
+      details: err?.message || String(err),
+    });
   }
 });
 

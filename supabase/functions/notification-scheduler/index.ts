@@ -10,7 +10,7 @@ import { normalizeFinancialContextPlaceholders } from "../_shared/financialNotif
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-api-key, x-scheduler-token",
 };
 const MAX_RETRY_ATTEMPTS = 3;
 const RETRY_BACKOFF_MS = [800, 1600];
@@ -483,6 +483,42 @@ async function resolveRecipient(
   };
 }
 
+/** Chama o backend para enviar notificações. Retorna true se sucesso. */
+async function callBackendDispatch(params: {
+  backendUrl: string;
+  apiKey: string;
+  service: RuleRow["service"];
+  eventKey: RuleRow["event_key"];
+  ruleId: string;
+  recipient: { patientId?: string | null; attendantId?: string | null; email?: string; phone?: string };
+  context: JsonMap;
+  dedupeKey: string;
+}): Promise<boolean> {
+  const { backendUrl, apiKey, service, eventKey, ruleId, recipient, context, dedupeKey } = params;
+  const base = backendUrl.replace(/\/+$/, "");
+  const res = await fetch(`${base}/api/notifications/dispatch`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-API-Key": apiKey,
+    },
+    body: JSON.stringify({
+      service,
+      eventKey,
+      ruleId,
+      recipient: {
+        patientId: recipient.patientId ?? null,
+        attendantId: recipient.attendantId ?? null,
+        email: recipient.email ?? null,
+        phone: recipient.phone ?? null,
+      },
+      context,
+      dedupeKey,
+    }),
+  });
+  return res.ok;
+}
+
 async function dispatchByRule(params: {
   admin: ReturnType<typeof createClient>;
   rule: RuleRow;
@@ -490,9 +526,39 @@ async function dispatchByRule(params: {
   context: JsonMap;
   dedupeBase: string;
   recipient: { email: string; phone: string };
+  recipientIds: { patientId?: string | null; attendantId?: string | null };
   timezone?: string | null;
+  backendUrl?: string;
+  apiKey?: string;
 }) {
-  const { admin, rule, eventKey, context, dedupeBase, recipient, timezone } = params;
+  const {
+    admin,
+    rule,
+    eventKey,
+    context,
+    dedupeBase,
+    recipient,
+    recipientIds,
+    timezone,
+    backendUrl,
+    apiKey,
+  } = params;
+
+  if (backendUrl && apiKey) {
+    const ok = await callBackendDispatch({
+      backendUrl,
+      apiKey,
+      service: rule.service,
+      eventKey,
+      ruleId: rule.id,
+      recipient: { ...recipientIds, email: recipient.email, phone: recipient.phone },
+      context,
+      dedupeKey: dedupeBase,
+    });
+    if (ok) return;
+    console.warn("[notification-scheduler] Backend falhou, usando fallback local");
+  }
+
   const businessContext = await normalizeBusinessContext({
     admin,
     service: rule.service,
@@ -616,6 +682,8 @@ Deno.serve(async (req) => {
     }
 
     const admin = createClient(supabaseUrl, serviceRoleKey);
+    const backendUrl = Deno.env.get("NOTIFICATIONS_BACKEND_URL")?.trim() || undefined;
+    const apiKey = Deno.env.get("NOTIFICATIONS_API_KEY")?.trim() || undefined;
     const now = new Date();
     let processed = 0;
     const { data: establishmentData } = await admin
@@ -633,7 +701,7 @@ Deno.serve(async (req) => {
         "id, name, channels, service, recipient_target, event_key, message, media_url, hours, timing"
       )
       .eq("enabled", true)
-      .in("event_key", ["lembrete_consulta", "conta_vencendo", "conta_vencida"]);
+      .in("event_key", ["lembrete_consulta", "conta_vencendo", "conta_vencida", "conta_criada"]);
 
     if (rulesError) throw rulesError;
     let activeRules = (rules || []) as RuleRow[];
@@ -694,6 +762,10 @@ Deno.serve(async (req) => {
             rule,
             eventKey: "lembrete_consulta",
             recipient,
+            recipientIds:
+              rule.recipient_target === "patient"
+                ? { patientId: appointment.patient_id, attendantId: null }
+                : { patientId: null, attendantId: appointment.attendant_id },
             dedupeBase: `sched:agenda:lembrete:${appointment.id}:${now.toISOString().slice(0, 13)}`,
             context: {
               paciente_nome: appointment.patient_name,
@@ -703,6 +775,8 @@ Deno.serve(async (req) => {
               hora_agendamento: appointment.appointment_time,
             },
             timezone: establishmentTimezone,
+            backendUrl,
+            apiKey,
           });
           processed += 1;
         }
@@ -710,41 +784,57 @@ Deno.serve(async (req) => {
     }
 
     const financialRules = activeRules.filter(
-      (r) => r.event_key === "conta_vencendo" || r.event_key === "conta_vencida"
+      (r) =>
+        r.event_key === "conta_vencendo" ||
+        r.event_key === "conta_vencida" ||
+        r.event_key === "conta_criada"
     );
     if (financialRules.length > 0) {
       const { data: revenues } = await admin
         .from("revenue")
-        .select("id, patient_id, patient_name, description, amount, revenue_date, status");
+        .select("id, patient_id, patient_name, description, amount, revenue_date, status, created_at");
 
       for (const revenue of revenues || []) {
-        const due = parseDateTimeInTimezone(
-          revenue.revenue_date,
-          "09:00",
-          establishmentTimezone
-        );
-        if (!due) continue;
         for (const rule of financialRules) {
+          let target: Date;
+          if (rule.event_key === "conta_criada") {
+            if (rule.timing !== "after") continue;
+            const createdAt = revenue.created_at
+              ? new Date(revenue.created_at)
+              : null;
+            if (!createdAt) continue;
+            const hours = Number(rule.hours) || 0;
+            target = new Date(createdAt.getTime() + hours * 60 * 60 * 1000);
+          } else {
+            const due = parseDateTimeInTimezone(
+              revenue.revenue_date,
+              "09:00",
+              establishmentTimezone
+            );
+            if (!due) continue;
+            const hours = Number(rule.hours) || 1;
+            target =
+              rule.event_key === "conta_vencendo"
+                ? new Date(due.getTime() - hours * 60 * 60 * 1000)
+                : new Date(due.getTime() + hours * 60 * 60 * 1000);
+          }
+
+          const age = Math.abs(diffMinutes(target, now));
+          if (target > now || age > 60) continue;
+
           const recipient = await resolveRecipient(
             admin,
             rule.recipient_target,
             revenue.patient_id,
             null
           );
-          const hours = Number(rule.hours) || 1;
-          const target =
-            rule.event_key === "conta_vencendo"
-              ? new Date(due.getTime() - hours * 60 * 60 * 1000)
-              : new Date(due.getTime() + hours * 60 * 60 * 1000);
-
-          const age = Math.abs(diffMinutes(target, now));
-          if (target > now || age > 60) continue;
 
           await dispatchByRule({
             admin,
             rule,
             eventKey: rule.event_key,
             recipient,
+            recipientIds: { patientId: revenue.patient_id, attendantId: null },
             dedupeBase: `sched:financeiro:${rule.event_key}:${revenue.id}:${now.toISOString().slice(0, 13)}`,
             context: {
               paciente_nome: revenue.patient_name,
@@ -754,6 +844,8 @@ Deno.serve(async (req) => {
               status_pagamento: revenue.status,
             },
             timezone: establishmentTimezone,
+            backendUrl,
+            apiKey,
           });
           processed += 1;
         }
@@ -821,6 +913,7 @@ Deno.serve(async (req) => {
                 rule,
                 eventKey: "aniversario",
                 recipient,
+                recipientIds: { patientId: null, attendantId: pr.id },
                 dedupeBase: `sched:aniversario:${rule.id}:professional:${pr.id}:${ptMonth}-${ptDay}`,
                 context: {
                   paciente_nome: "",
@@ -829,6 +922,8 @@ Deno.serve(async (req) => {
                   profissional_primeiro_nome: nome.split(/\s+/)[0] || nome,
                 },
                 timezone: establishmentTimezone,
+                backendUrl,
+                apiKey,
               });
               aniversarioProcessed += 1;
             }
@@ -858,6 +953,7 @@ Deno.serve(async (req) => {
                 rule,
                 eventKey: "aniversario",
                 recipient,
+                recipientIds: { patientId: p.id, attendantId: null },
                 dedupeBase: `sched:aniversario:${rule.id}:patient:${p.id}:${ptMonth}-${ptDay}`,
                 context: {
                   paciente_nome: nome,
@@ -866,6 +962,8 @@ Deno.serve(async (req) => {
                   profissional_primeiro_nome: "",
                 },
                 timezone: establishmentTimezone,
+                backendUrl,
+                apiKey,
               });
               aniversarioProcessed += 1;
             }

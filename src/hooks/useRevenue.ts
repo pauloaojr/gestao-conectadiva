@@ -199,21 +199,8 @@ export const useRevenue = () => {
 
       toast({ title: 'Receita adicionada', description: 'A receita manual foi registrada.' });
 
-      enqueueNotificationDispatch({
-        service: "financeiro",
-        eventKey: "conta_criada",
-        recipient: {
-          patientId: payload.patient_id ?? null,
-        },
-        context: {
-          paciente_nome: payload.patient_name ?? '',
-          descricao_conta: payload.description,
-          valor: payload.amount,
-          data_vencimento: payload.revenue_date,
-          status_pagamento: payload.status ?? 'pending',
-        },
-        dedupeKey: `financeiro:conta_criada:${data.id}`,
-      });
+      // conta_criada é enviada pelo scheduler (respeita timing "X horas após criação")
+      // não dispacha imediatamente para não ignorar regras com delay configurado
 
       return data as ManualRevenueRow;
     } catch (err: any) {
@@ -614,25 +601,7 @@ export const useRevenue = () => {
           },
         });
 
-        const dedupeKey = createdRevenue?.id
-          ? `financeiro:conta_criada:${createdRevenue.id}`
-          : `financeiro:conta_criada:plano:${patientId}:${p.revenue_date}:${p.description}`;
-
-        enqueueNotificationDispatch({
-          service: "financeiro",
-          eventKey: "conta_criada",
-          recipient: {
-            patientId,
-          },
-          context: {
-            paciente_nome: patientName,
-            descricao_conta: p.description,
-            valor: p.amount,
-            data_vencimento: p.revenue_date,
-            status_pagamento: defaultStatus,
-          },
-          dedupeKey,
-        });
+        // conta_criada é enviada pelo scheduler (respeita timing "X horas após criação")
       }
 
       for (const revId of createdIds) {

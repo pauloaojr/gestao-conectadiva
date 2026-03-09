@@ -1,5 +1,5 @@
-import { Dispatch } from "react";
-import { Copy, Save, Trash2, FileText, ChevronRight, MessageSquare, Image, CheckCheck, User } from "lucide-react";
+import { Dispatch, useState } from "react";
+import { Copy, Save, Send, Trash2, FileText, ChevronRight, MessageSquare, Image, CheckCheck, User } from "lucide-react";
 import { NotificationMediaField } from "@/components/settings/NotificationMediaField";
 import { parseNotificationMediaUrl } from "@/lib/notificationMedia";
 import { Button } from "@/components/ui/button";
@@ -49,6 +49,7 @@ type NotificationRuleEditorProps = {
     onDuplicate: () => void;
     onDelete: () => void;
     onAddMediaFiles?: (files: File[]) => Promise<void>;
+    onSendTest?: (email?: string, phone?: string) => Promise<void>;
   };
 };
 
@@ -110,6 +111,7 @@ export function NotificationRuleEditor({
     previewText,
     readOnly = false,
   } = state;
+  const [isSendingTest, setIsSendingTest] = useState(false);
   const {
     dispatchDraft,
     onToggleChannel,
@@ -119,6 +121,7 @@ export function NotificationRuleEditor({
     onDuplicate,
     onDelete,
     onAddMediaFiles,
+    onSendTest,
   } = actions;
 
   return (
@@ -422,7 +425,7 @@ export function NotificationRuleEditor({
       </Card>
 
       {/* Pré-visualização (colapsável) */}
-      <Collapsible defaultOpen={false}>
+      <Collapsible defaultOpen={true}>
         <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg border bg-muted/20 px-4 py-3 text-left hover:bg-muted/30 transition-colors [&[data-state=open]>svg]:rotate-90">
           <span className="text-sm font-medium">Pré-visualização do envio</span>
           <ChevronRight className="h-4 w-4 shrink-0 transition-transform text-muted-foreground" />
@@ -506,6 +509,67 @@ export function NotificationRuleEditor({
             <p className="text-xs text-muted-foreground">
               Preview com dados simulados para validação.
             </p>
+            {onSendTest && draft.id && draft.channels.length > 0 && !readOnly && (
+              <div className="mt-4 pt-4 border-t space-y-3">
+                <p className="text-sm font-medium">Enviar teste</p>
+                <p className="text-xs text-muted-foreground">
+                  Informe e-mail ou telefone (5511999999999) para receber uma mensagem de teste.
+                </p>
+                <div className="flex flex-wrap gap-2 items-end">
+                  <div className="space-y-1">
+                    <Label htmlFor="test-email" className="text-xs">E-mail</Label>
+                    <Input
+                      id="test-email"
+                      type="email"
+                      placeholder="teste@email.com"
+                      className="w-48"
+                      disabled={!draft.channels.includes("email")}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="test-phone" className="text-xs">Telefone</Label>
+                    <Input
+                      id="test-phone"
+                      type="tel"
+                      placeholder="5511999999999"
+                      className="w-40"
+                      disabled={!draft.channels.includes("whatsapp")}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isSendingTest}
+                    onClick={async () => {
+                      const emailEl = document.getElementById("test-email") as HTMLInputElement;
+                      const phoneEl = document.getElementById("test-phone") as HTMLInputElement;
+                      const email = emailEl?.value?.trim();
+                      const phone = phoneEl?.value?.replace(/\D/g, "").trim();
+                      const phoneFormatted = phone ? (phone.startsWith("55") ? phone : `55${phone}`) : undefined;
+                      if (!email && !phoneFormatted) return;
+                      setIsSendingTest(true);
+                      try {
+                        await onSendTest(email || undefined, phoneFormatted || undefined);
+                        emailEl && (emailEl.value = "");
+                        phoneEl && (phoneEl.value = "");
+                      } finally {
+                        setIsSendingTest(false);
+                      }
+                    }}
+                  >
+                    {isSendingTest ? (
+                      <span className="animate-pulse">Enviando...</span>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4 mr-2" />
+                        Enviar teste
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </CollapsibleContent>
       </Collapsible>
