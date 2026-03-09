@@ -4,6 +4,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -115,6 +116,9 @@ const EditRecordModal = ({ isOpen, onClose, record, onUpdate }: EditRecordModalP
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Editar Prontuário - {record.patientName}</DialogTitle>
+          <DialogDescription className="sr-only">
+            Formulário para alterar diagnóstico, observações, status, sessões e próxima consulta do prontuário.
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">

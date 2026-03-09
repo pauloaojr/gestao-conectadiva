@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -480,6 +482,8 @@ export const ViewRecordModal = ({ record, isOpen, onClose, onEdit, onDelete }: V
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[720px] max-h-[90vh] overflow-y-auto p-0 gap-0 border-0 shadow-2xl [&>button:last-child]:hidden">
+        <DialogTitle className="sr-only">Prontuário de {record.patientName}</DialogTitle>
+        <DialogDescription className="sr-only">Visualização e edição do prontuário médico do paciente {record.patientName}</DialogDescription>
         {/* Header com gradiente dinâmico */}
         <div className="p-6 text-white relative overflow-hidden" style={{ backgroundColor: customizationData.primaryColor }}>
           <button
