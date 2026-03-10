@@ -19,6 +19,8 @@ import {
   useNotificationSettings,
 } from "@/hooks/useNotificationSettings";
 import { useEstablishmentDB } from "@/hooks/useEstablishment";
+import { useEvolutionApiConfig } from "@/hooks/useEvolutionApiConfig";
+import { useEmailSmtpConfig } from "@/hooks/useEmailSmtpConfig";
 import { draftReducer } from "@/components/settings/NotificationSettings.reducer";
 import { NotificationRuleEditor } from "@/components/settings/NotificationRuleEditor";
 import { NotificationRulesList } from "@/components/settings/NotificationRulesList";
@@ -36,6 +38,8 @@ import { parseNotificationMediaUrl, type NotificationMediaItem } from "@/lib/not
 export function NotificationSettings() {
   const { toast } = useToast();
   const { establishment } = useEstablishmentDB();
+  const { config: evolutionConfig } = useEvolutionApiConfig();
+  const { config: emailConfig } = useEmailSmtpConfig();
   const { rules, isLoading, error, saveRule, deleteRule, createEmptyRule } =
     useNotificationSettings();
   const [togglingRuleId, setTogglingRuleId] = useState<string | null>(null);
@@ -102,6 +106,28 @@ export function NotificationSettings() {
         variant: "destructive",
       });
       return;
+    }
+
+    if (draft.channels.includes("whatsapp") && !evolutionConfig.enabled) {
+      const confirmed = window.confirm(
+        "A Evolution API (WhatsApp) não está ativada nas Integrações. As notificações por WhatsApp não serão enviadas até configurá-la. Deseja salvar mesmo assim?"
+      );
+      if (!confirmed) return;
+    }
+
+    if (draft.channels.includes("email") && (!emailConfig.enabled || !emailConfig.backendUrl?.trim())) {
+      const confirmed = window.confirm(
+        "O e-mail SMTP não está configurado ou a URL do backend não foi informada. As notificações por e-mail não serão enviadas até configurá-lo. Deseja salvar mesmo assim?"
+      );
+      if (!confirmed) return;
+    }
+
+    if (draft.recipientTarget === "patient" && draft.channels.includes("whatsapp")) {
+      toast({
+        title: "WhatsApp para paciente",
+        description: "Verifique se os pacientes possuem telefone cadastrado para receber as notificações.",
+        variant: "default",
+      });
     }
 
     await saveRule(draft, {

@@ -30,7 +30,9 @@ import {
   Lock,
   User2,
   Database,
+  Bell,
 } from "lucide-react";
+import { NotificationFailuresCard } from "@/components/NotificationFailuresCard";
 
 type EvolutionInstance = {
   instanceName: string;
@@ -1091,6 +1093,15 @@ const Integrations = () => {
             <Database className="w-4 h-4" />
             <span>Minio</span>
           </TabsTrigger>
+          <TabsTrigger
+            value="notifications"
+            className="flex items-center justify-center gap-2 rounded-md min-w-[170px] px-4 py-2 text-sm font-medium
+                       text-muted-foreground transition-colors
+                       data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+          >
+            <Bell className="w-4 h-4" />
+            <span>Notificações</span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="evolution" className="space-y-4 md:space-y-6">
@@ -1988,6 +1999,10 @@ const Integrations = () => {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="notifications" className="space-y-4">
+          <NotificationFailuresCard />
         </TabsContent>
       </Tabs>
 

@@ -12,6 +12,7 @@ type QueueVisibilityData = {
   last24hFailed: number;
   appointmentsNext24h: number;
   revenuesLast2h: number;
+  pendingJobsCount: number;
 };
 
 export function NotificationQueueVisibility() {
@@ -22,6 +23,7 @@ export function NotificationQueueVisibility() {
     last24hFailed: 0,
     appointmentsNext24h: 0,
     revenuesLast2h: 0,
+    pendingJobsCount: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -39,6 +41,7 @@ export function NotificationQueueVisibility() {
         failed24hRes,
         appointmentsRes,
         revenuesRes,
+        pendingJobsRes,
       ] = await Promise.all([
         supabase
           .from("notification_dispatch_logs")
@@ -65,6 +68,10 @@ export function NotificationQueueVisibility() {
           .from("revenue")
           .select("id", { count: "exact", head: true })
           .gte("created_at", since2h),
+        supabase
+          .from("notification_jobs")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "pending"),
       ]);
 
       setData({
@@ -74,6 +81,7 @@ export function NotificationQueueVisibility() {
         last24hFailed: failed24hRes.count ?? 0,
         appointmentsNext24h: appointmentsRes.count ?? 0,
         revenuesLast2h: revenuesRes.count ?? 0,
+        pendingJobsCount: pendingJobsRes.count ?? 0,
       });
     } catch {
       // silencioso
@@ -116,6 +124,9 @@ export function NotificationQueueVisibility() {
         <p className="text-xs text-muted-foreground mt-1">
           O scheduler roda a cada 15 min. Pendências estimadas por tipo.
         </p>
+        <p className="text-xs text-amber-600 mt-1">
+          Se não houver envios há 1h ou mais, verifique se o cron está ativo (Supabase Dashboard → Integrations → Cron).
+        </p>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center gap-2 text-sm">
@@ -138,10 +149,10 @@ export function NotificationQueueVisibility() {
               <span className="text-xs">Pendências</span>
             </div>
             <p className="text-sm font-medium">
-              {data.appointmentsNext24h} consulta(s) nos próximos dias
+              {data.pendingJobsCount} job(s) na fila
             </p>
             <p className="text-xs text-muted-foreground">
-              {data.revenuesLast2h} receita(s) criada(s) nas últimas 2h
+              {data.appointmentsNext24h} consulta(s) / {data.revenuesLast2h} receita(s)
             </p>
           </div>
         </div>

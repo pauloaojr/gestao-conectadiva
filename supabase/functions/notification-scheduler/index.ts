@@ -483,6 +483,135 @@ async function resolveRecipient(
   };
 }
 
+type JobRow = {
+  id: string;
+  notification_settings_id: string;
+  service: string;
+  event_key: string;
+  entity_type: string;
+  entity_id: string | null;
+  recipient_patient_id: string | null;
+  recipient_attendant_id: string | null;
+  context_json: JsonMap;
+  run_at: string;
+  dedupe_key: string;
+  attempts: number;
+};
+
+/** Enfileira um job em notification_jobs. Ignora conflito de dedupe_key. */
+async function enqueueJob(
+  admin: ReturnType<typeof createClient>,
+  params: {
+    ruleId: string;
+    service: RuleRow["service"];
+    eventKey: RuleRow["event_key"];
+    entityType: "appointment" | "revenue" | "patient" | "profile";
+    entityId: string | null;
+    recipientPatientId: string | null;
+    recipientAttendantId: string | null;
+    context: JsonMap;
+    runAt: Date;
+    dedupeKey: string;
+  }
+): Promise<boolean> {
+  const { data, error } = await admin.from("notification_jobs").upsert(
+    {
+      notification_settings_id: params.ruleId,
+      service: params.service,
+      event_key: params.eventKey,
+      entity_type: params.entityType,
+      entity_id: params.entityId,
+      recipient_patient_id: params.recipientPatientId,
+      recipient_attendant_id: params.recipientAttendantId,
+      context_json: params.context,
+      run_at: params.runAt.toISOString(),
+      status: "pending",
+      dedupe_key: params.dedupeKey,
+    },
+    { onConflict: "dedupe_key", ignoreDuplicates: true }
+  );
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
+}
+
+/** Processa jobs pendentes da fila. Retorna quantos foram processados. */
+async function processPendingJobs(params: {
+  admin: ReturnType<typeof createClient>;
+  rulesById: Map<string, RuleRow>;
+  establishmentTimezone: string | null;
+  backendUrl?: string;
+  apiKey?: string;
+}): Promise<number> {
+  const { admin, rulesById, establishmentTimezone, backendUrl, apiKey } = params;
+  const now = new Date();
+  const { data: jobs, error } = await admin
+    .from("notification_jobs")
+    .select("*")
+    .eq("status", "pending")
+    .lte("run_at", now.toISOString())
+    .order("run_at", { ascending: true })
+    .limit(50);
+
+  if (error) throw error;
+  if (!jobs?.length) return 0;
+
+  let processed = 0;
+  for (const job of jobs as JobRow[]) {
+    const rule = rulesById.get(job.notification_settings_id);
+    if (!rule) {
+      await admin
+        .from("notification_jobs")
+        .update({ status: "failed", error_message: "Regra não encontrada", updated_at: new Date().toISOString() })
+        .eq("id", job.id);
+      processed += 1;
+      continue;
+    }
+
+    const recipient = await resolveRecipient(
+      admin,
+      rule.recipient_target,
+      job.recipient_patient_id,
+      job.recipient_attendant_id
+    );
+
+    try {
+      await dispatchByRule({
+        admin,
+        rule,
+        eventKey: rule.event_key as RuleRow["event_key"],
+        recipient,
+        recipientIds: {
+          patientId: job.recipient_patient_id,
+          attendantId: job.recipient_attendant_id,
+        },
+        dedupeBase: job.dedupe_key,
+        context: job.context_json || {},
+        timezone: establishmentTimezone,
+        backendUrl,
+        apiKey,
+      });
+      await admin
+        .from("notification_jobs")
+        .update({ status: "sent", attempts: job.attempts + 1, updated_at: new Date().toISOString() })
+        .eq("id", job.id);
+      processed += 1;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await admin
+        .from("notification_jobs")
+        .update({
+          status: job.attempts >= 2 ? "failed" : "pending",
+          attempts: job.attempts + 1,
+          error_message: msg,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", job.id);
+      processed += 1;
+    }
+  }
+  return processed;
+}
+
 /** Chama o backend para enviar notificações. Retorna true se sucesso. */
 async function callBackendDispatch(params: {
   backendUrl: string;
@@ -726,6 +855,17 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: true, processed: 0, message: "Sem regras ativas." });
     }
 
+    const rulesById = new Map<string, RuleRow>(activeRules.map((r) => [r.id, r]));
+
+    // Fase 1: processar jobs pendentes da fila
+    processed += await processPendingJobs({
+      admin,
+      rulesById,
+      establishmentTimezone,
+      backendUrl,
+      apiKey,
+    });
+
     const reminderRules = activeRules.filter((r) => r.event_key === "lembrete_consulta");
     if (reminderRules.length > 0) {
       const { data: appointments } = await admin
@@ -743,12 +883,6 @@ Deno.serve(async (req) => {
         );
         if (!dateTime) continue;
         for (const rule of reminderRules) {
-          const recipient = await resolveRecipient(
-            admin,
-            rule.recipient_target,
-            appointment.patient_id,
-            appointment.attendant_id
-          );
           const windowMinutes = Math.max(5, Math.round((Number(rule.hours) || 1) * 60));
           const diff = diffMinutes(dateTime, now);
           const inTime =
@@ -757,16 +891,17 @@ Deno.serve(async (req) => {
               : diff <= 0 && Math.abs(diff) <= windowMinutes;
           if (!inTime) continue;
 
-          await dispatchByRule({
-            admin,
-            rule,
+          const dedupeKey = `sched:agenda:lembrete:${appointment.id}:${rule.id}:${now.toISOString().slice(0, 13)}`;
+          const enqueued = await enqueueJob(admin, {
+            ruleId: rule.id,
+            service: rule.service,
             eventKey: "lembrete_consulta",
-            recipient,
-            recipientIds:
-              rule.recipient_target === "patient"
-                ? { patientId: appointment.patient_id, attendantId: null }
-                : { patientId: null, attendantId: appointment.attendant_id },
-            dedupeBase: `sched:agenda:lembrete:${appointment.id}:${now.toISOString().slice(0, 13)}`,
+            entityType: "appointment",
+            entityId: appointment.id,
+            recipientPatientId:
+              rule.recipient_target === "patient" ? appointment.patient_id : null,
+            recipientAttendantId:
+              rule.recipient_target === "professional" ? appointment.attendant_id : null,
             context: {
               paciente_nome: appointment.patient_name,
               profissional_nome: appointment.attendant_name,
@@ -774,11 +909,10 @@ Deno.serve(async (req) => {
               data_agendamento: appointment.appointment_date,
               hora_agendamento: appointment.appointment_time,
             },
-            timezone: establishmentTimezone,
-            backendUrl,
-            apiKey,
+            runAt: now,
+            dedupeKey,
           });
-          processed += 1;
+          if (enqueued) processed += 1;
         }
       }
     }
@@ -822,20 +956,15 @@ Deno.serve(async (req) => {
           const age = Math.abs(diffMinutes(target, now));
           if (target > now || age > 60) continue;
 
-          const recipient = await resolveRecipient(
-            admin,
-            rule.recipient_target,
-            revenue.patient_id,
-            null
-          );
-
-          await dispatchByRule({
-            admin,
-            rule,
+          const dedupeKey = `sched:financeiro:${rule.event_key}:${revenue.id}:${rule.id}:${now.toISOString().slice(0, 13)}`;
+          const enqueued = await enqueueJob(admin, {
+            ruleId: rule.id,
+            service: rule.service,
             eventKey: rule.event_key,
-            recipient,
-            recipientIds: { patientId: revenue.patient_id, attendantId: null },
-            dedupeBase: `sched:financeiro:${rule.event_key}:${revenue.id}:${now.toISOString().slice(0, 13)}`,
+            entityType: "revenue",
+            entityId: revenue.id,
+            recipientPatientId: revenue.patient_id,
+            recipientAttendantId: null,
             context: {
               paciente_nome: revenue.patient_name,
               descricao_conta: revenue.description,
@@ -843,11 +972,10 @@ Deno.serve(async (req) => {
               data_vencimento: revenue.revenue_date,
               status_pagamento: revenue.status,
             },
-            timezone: establishmentTimezone,
-            backendUrl,
-            apiKey,
+            runAt: now,
+            dedupeKey,
           });
-          processed += 1;
+          if (enqueued) processed += 1;
         }
       }
     }
@@ -906,26 +1034,26 @@ Deno.serve(async (req) => {
               if (!parsed || parsed.month !== ptMonth || parsed.day !== ptDay) continue;
               matchingCount += 1;
 
-              const recipient = await resolveRecipient(admin, "professional", null, pr.id);
               const nome = (pr.name || "").trim() || "Profissional";
-              await dispatchByRule({
-                admin,
-                rule,
+              const dedupeKey = `sched:aniversario:${rule.id}:professional:${pr.id}:${ptMonth}-${ptDay}`;
+              const enqueued = await enqueueJob(admin, {
+                ruleId: rule.id,
+                service: rule.service,
                 eventKey: "aniversario",
-                recipient,
-                recipientIds: { patientId: null, attendantId: pr.id },
-                dedupeBase: `sched:aniversario:${rule.id}:professional:${pr.id}:${ptMonth}-${ptDay}`,
+                entityType: "profile",
+                entityId: pr.id,
+                recipientPatientId: null,
+                recipientAttendantId: pr.id,
                 context: {
                   paciente_nome: "",
                   paciente_primeiro_nome: "",
                   profissional_nome: nome,
                   profissional_primeiro_nome: nome.split(/\s+/)[0] || nome,
                 },
-                timezone: establishmentTimezone,
-                backendUrl,
-                apiKey,
+                runAt: now,
+                dedupeKey,
               });
-              aniversarioProcessed += 1;
+              if (enqueued) aniversarioProcessed += 1;
             }
             aniversarioDebug = {
               todayMonth: ptMonth,
@@ -946,26 +1074,26 @@ Deno.serve(async (req) => {
               const parsed = parseBirthMonthDay(p.birth_date);
               if (!parsed || parsed.month !== ptMonth || parsed.day !== ptDay) continue;
 
-              const recipient = await resolveRecipient(admin, "patient", p.id, null);
               const nome = (p.name || "").trim() || "Paciente";
-              await dispatchByRule({
-                admin,
-                rule,
+              const dedupeKey = `sched:aniversario:${rule.id}:patient:${p.id}:${ptMonth}-${ptDay}`;
+              const enqueued = await enqueueJob(admin, {
+                ruleId: rule.id,
+                service: rule.service,
                 eventKey: "aniversario",
-                recipient,
-                recipientIds: { patientId: p.id, attendantId: null },
-                dedupeBase: `sched:aniversario:${rule.id}:patient:${p.id}:${ptMonth}-${ptDay}`,
+                entityType: "patient",
+                entityId: p.id,
+                recipientPatientId: p.id,
+                recipientAttendantId: null,
                 context: {
                   paciente_nome: nome,
                   paciente_primeiro_nome: nome.split(/\s+/)[0] || nome,
                   profissional_nome: "",
                   profissional_primeiro_nome: "",
                 },
-                timezone: establishmentTimezone,
-                backendUrl,
-                apiKey,
+                runAt: now,
+                dedupeKey,
               });
-              aniversarioProcessed += 1;
+              if (enqueued) aniversarioProcessed += 1;
             }
           }
         }
