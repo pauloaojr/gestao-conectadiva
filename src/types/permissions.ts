@@ -24,6 +24,7 @@ export type SettingsTabId =
   | 'establishment'
   | 'security'
   | 'notifications'
+  | 'repasse'
   | 'plano'
   | 'statusAgenda'
   | 'roles'
@@ -31,7 +32,7 @@ export type SettingsTabId =
 
 export const SETTINGS_TAB_IDS: SettingsTabId[] = [
   'perfil', 'personalizacao', 'establishment', 'security', 'notifications',
-  'plano', 'statusAgenda', 'roles', 'users',
+  'repasse', 'plano', 'statusAgenda', 'roles', 'users',
 ];
 
 export const SETTINGS_TAB_LABELS: Record<SettingsTabId, string> = {
@@ -40,6 +41,7 @@ export const SETTINGS_TAB_LABELS: Record<SettingsTabId, string> = {
   establishment: 'Estabelecimento',
   security: 'Segurança',
   notifications: 'Notificações',
+  repasse: 'Repasse',
   plano: 'Plano',
   statusAgenda: 'Status Agenda',
   roles: 'Funções',
@@ -86,6 +88,7 @@ export function getDefaultGranularPermissions(): Record<GranularResource, Permis
     establishment: 'none',
     security: 'none',
     notifications: 'none',
+    repasse: 'none',
     plano: 'none',
     statusAgenda: 'none',
     roles: 'none',
