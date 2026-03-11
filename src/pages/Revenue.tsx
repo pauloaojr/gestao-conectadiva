@@ -590,6 +590,7 @@ const Revenue = () => {
                             )}
                           </Button>
                         </TableHead>
+                        <TableHead className="whitespace-nowrap">Data Recebido</TableHead>
                         <TableHead className="w-[120px]">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -623,6 +624,11 @@ const Revenue = () => {
                             >
                               {getStatusLabel(item.status)}
                             </Badge>
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap text-muted-foreground text-sm">
+                            {item.receivedAt
+                              ? format(new Date(item.receivedAt.slice(0, 10) + "T12:00:00"), "dd/MM/yyyy", { locale: ptBR })
+                              : "—"}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-0">

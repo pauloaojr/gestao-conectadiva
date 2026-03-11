@@ -8,6 +8,9 @@ interface KanbanBoardProps {
   onStatusChange: (appointmentId: number | string, newStatus: string) => void;
   onEdit: (appointment: KanbanAppointment) => void;
   onDelete: (id: number | string) => void;
+  canUpdateStatus?: boolean;
+  canFullEdit?: boolean;
+  canDelete?: boolean;
 }
 
 export const KanbanBoard = ({
@@ -15,7 +18,10 @@ export const KanbanBoard = ({
   appointments,
   onStatusChange,
   onEdit,
-  onDelete
+  onDelete,
+  canUpdateStatus = true,
+  canFullEdit = true,
+  canDelete = true,
 }: KanbanBoardProps) => {
   const appointmentsByStatus = useMemo(() => {
     const map: Record<string, KanbanAppointment[]> = {};
@@ -44,6 +50,9 @@ export const KanbanBoard = ({
           onStatusChange={onStatusChange}
           onEdit={onEdit}
           onDelete={onDelete}
+          canUpdateStatus={canUpdateStatus}
+          canFullEdit={canFullEdit}
+          canDelete={canDelete}
         />
       ))}
       </div>

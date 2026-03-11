@@ -94,6 +94,12 @@ const reportsMenuItems = [
     icon: DollarSign,
     permission: 'reports' as const,
   },
+  {
+    title: "Repasses",
+    url: "/relatorios/repasses",
+    icon: Wallet,
+    permission: 'reports' as const,
+  },
 ];
 
 // Menu Financeiro

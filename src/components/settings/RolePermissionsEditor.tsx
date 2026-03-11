@@ -14,12 +14,13 @@ import { UserPermissions } from '@/types/user';
 import type { PermissionLevel, SettingsTabId } from '@/types/permissions';
 import { SETTINGS_TAB_LABELS, SETTINGS_TAB_IDS } from '@/types/permissions';
 import { normalizePermissionLevel } from '@/types/permissions';
-import { Eye, Pencil, Trash2, Plus, Minus } from 'lucide-react';
+import { Eye, Pencil, Trash2, Plus, Minus, Activity } from 'lucide-react';
 
 const RESOURCE_FIELDS: { key: keyof UserPermissions; label: string }[] = [
   { key: 'patients', label: 'Pacientes' },
   { key: 'medicalRecords', label: 'Prontuários Médicos' },
   { key: 'schedule', label: 'Agenda' },
+  { key: 'reports', label: 'Relatórios' },
   { key: 'settings', label: 'Configurações' },
   { key: 'userManagement', label: 'Gerenciamento de Atendentes' },
   { key: 'scheduleManagement', label: 'Gerenciamento de Horários' },
@@ -35,12 +36,18 @@ interface RolePermissionsEditorProps {
   idPrefix?: string;
 }
 
-/** Dado o nível, aplica regra em cascata ao marcar Editar ou Deletar */
-function levelFromCheckboxes(view: boolean, edit: boolean, del: boolean): PermissionLevel {
+/** Dado o nível, aplica regra em cascata ao marcar Alterar Status, Editar ou Deletar */
+function levelFromCheckboxes(view: boolean, status: boolean, edit: boolean, del: boolean): PermissionLevel {
   if (del) return 'delete';
   if (edit) return 'edit';
+  if (status) return 'status';
   if (view) return 'view';
   return 'none';
+}
+
+/** Para recursos que não têm "Alterar Status" (todos exceto schedule), usa 3 checkboxes */
+function levelFromCheckboxes3(view: boolean, edit: boolean, del: boolean): PermissionLevel {
+  return levelFromCheckboxes(view, false, edit, del);
 }
 
 function hasAnySettingsTabPermission(permissions: UserPermissions | undefined): boolean {
@@ -77,35 +84,50 @@ export function RolePermissionsEditor({ permissions, onChange, idPrefix = '' }: 
 
   const handleResourceCheck = (
     key: keyof UserPermissions,
-    action: 'view' | 'edit' | 'delete',
+    action: 'view' | 'status' | 'edit' | 'delete',
     checked: boolean
   ) => {
     const level = getLevel(key);
     const view = level !== 'none';
+    const status = level === 'status' || level === 'edit' || level === 'delete';
     const edit = level === 'edit' || level === 'delete';
     const del = level === 'delete';
     let newView = view;
+    let newStatus = status;
     let newEdit = edit;
     let newDel = del;
     if (action === 'view') {
       newView = checked;
       if (!checked) {
+        newStatus = false;
+        newEdit = false;
+        newDel = false;
+      }
+    } else if (action === 'status') {
+      newStatus = checked;
+      if (checked) newView = true;
+      else {
         newEdit = false;
         newDel = false;
       }
     } else if (action === 'edit') {
       newEdit = checked;
-      if (checked) newView = true;
-      else newDel = false;
+      if (checked) {
+        newView = true;
+        newStatus = true;
+      } else newDel = false;
     } else {
       newDel = checked;
       if (checked) {
         newEdit = true;
+        newStatus = true;
         newView = true;
       }
     }
-    const newLevel = levelFromCheckboxes(newView, newEdit, newDel);
-    if (key === 'settings' && newLevel !== 'none') {
+    const newLevel = key === 'schedule'
+      ? levelFromCheckboxes(newView, newStatus, newEdit, newDel)
+      : levelFromCheckboxes3(newView, newEdit, newDel);
+    if (key === 'settings') {
       const allTabsLevel = SETTINGS_TAB_IDS.reduce(
         (acc, tab) => ({ ...acc, [tab]: newLevel }),
         {} as Record<SettingsTabId, PermissionLevel>
@@ -118,7 +140,7 @@ export function RolePermissionsEditor({ permissions, onChange, idPrefix = '' }: 
 
   const handleSettingsTabCheck = (
     tab: SettingsTabId,
-    action: 'view' | 'edit' | 'delete',
+    action: 'view' | 'status' | 'edit' | 'delete',
     checked: boolean
   ) => {
     const level = getSettingsTabLevel(tab);
@@ -134,6 +156,11 @@ export function RolePermissionsEditor({ permissions, onChange, idPrefix = '' }: 
         newEdit = false;
         newDel = false;
       }
+    } else if (action === 'status') {
+      // Settings tabs não têm "Alterar Status" - tratar como edit
+      newEdit = checked;
+      if (checked) newView = true;
+      else newDel = false;
     } else if (action === 'edit') {
       newEdit = checked;
       if (checked) newView = true;
@@ -145,7 +172,7 @@ export function RolePermissionsEditor({ permissions, onChange, idPrefix = '' }: 
         newView = true;
       }
     }
-    setSettingsTabLevel(tab, levelFromCheckboxes(newView, newEdit, newDel));
+    setSettingsTabLevel(tab, levelFromCheckboxes3(newView, newEdit, newDel));
   };
 
   const PermissionRow = ({
@@ -154,14 +181,17 @@ export function RolePermissionsEditor({ permissions, onChange, idPrefix = '' }: 
     level,
     onCheck,
     indent,
+    showStatus = false,
   }: {
     id: string;
     label: string;
     level: PermissionLevel;
-    onCheck: (action: 'view' | 'edit' | 'delete', checked: boolean) => void;
+    onCheck: (action: 'view' | 'status' | 'edit' | 'delete', checked: boolean) => void;
     indent?: boolean;
+    showStatus?: boolean;
   }) => {
     const view = level !== 'none';
+    const status = level === 'status' || level === 'edit' || level === 'delete';
     const edit = level === 'edit' || level === 'delete';
     const del = level === 'delete';
     return (
@@ -176,6 +206,17 @@ export function RolePermissionsEditor({ permissions, onChange, idPrefix = '' }: 
             onCheckedChange={(c) => onCheck('view', c === true)}
           />
         </TableCell>
+        {showStatus ? (
+          <TableCell className="text-center w-[80px]">
+            <Checkbox
+              id={`${idPrefix}-${id}-status`}
+              checked={status}
+              onCheckedChange={(c) => onCheck('status', c === true)}
+            />
+          </TableCell>
+        ) : (
+          <TableCell className="text-center w-[80px] text-muted-foreground">—</TableCell>
+        )}
         <TableCell className="text-center w-[80px]">
           <Checkbox
             id={`${idPrefix}-${id}-edit`}
@@ -198,8 +239,9 @@ export function RolePermissionsEditor({ permissions, onChange, idPrefix = '' }: 
     <div className="space-y-3">
       <Label className="text-base font-medium">Telas</Label>
       <p className="text-xs text-muted-foreground">
-        Marque Visualizar, Editar ou Deletar para cada tela. Editar marca Visualizar; Deletar marca Editar e Visualizar.
+        Marque Visualizar, Editar ou Deletar para cada tela. Em Agenda, &quot;Alterar Status&quot; permite apenas mudar o status do agendamento; &quot;Editar&quot; permite edição completa. Editar marca Visualizar; Deletar marca Editar e Visualizar.
         Em Configurações, os checkboxes liberam todas as abas; use o + para definir por aba.
+        Em Relatórios: quem tem apenas Visualizar acessa os relatórios mas não vê a coluna &quot;Data do Recebimento&quot; no Repasses; Editar ou Deletar exibe essa coluna.
       </p>
       <div className="border rounded-lg overflow-hidden">
         <Table>
@@ -210,6 +252,12 @@ export function RolePermissionsEditor({ permissions, onChange, idPrefix = '' }: 
                 <span className="flex items-center justify-center gap-1.5">
                   <Eye className="h-4 w-4" />
                   <span className="text-xs font-medium">Visualizar</span>
+                </span>
+              </TableHead>
+              <TableHead className="text-center w-[80px]">
+                <span className="flex items-center justify-center gap-1.5" title="Apenas Agenda">
+                  <Activity className="h-4 w-4" />
+                  <span className="text-xs font-medium">Alterar Status</span>
                 </span>
               </TableHead>
               <TableHead className="text-center w-[80px]">
@@ -259,6 +307,17 @@ export function RolePermissionsEditor({ permissions, onChange, idPrefix = '' }: 
                     onCheckedChange={(c) => handleResourceCheck(key, 'view', c === true)}
                   />
                 </TableCell>
+                {key === 'schedule' ? (
+                  <TableCell className="text-center w-[80px]">
+                    <Checkbox
+                      id={`${idPrefix}-${key}-status`}
+                      checked={getLevel(key) === 'status' || getLevel(key) === 'edit' || getLevel(key) === 'delete'}
+                      onCheckedChange={(c) => handleResourceCheck(key, 'status', c === true)}
+                    />
+                  </TableCell>
+                ) : (
+                  <TableCell className="text-center w-[80px] text-muted-foreground">—</TableCell>
+                )}
                 <TableCell className="text-center w-[80px]">
                   <Checkbox
                     id={`${idPrefix}-${key}-edit`}
@@ -281,7 +340,7 @@ export function RolePermissionsEditor({ permissions, onChange, idPrefix = '' }: 
                       id={`settings-${tab}`}
                       label={SETTINGS_TAB_LABELS[tab]}
                       level={getSettingsTabLevel(tab)}
-                      onCheck={(action, checked) => handleSettingsTabCheck(tab, action, checked)}
+                      onCheck={(action, checked) => handleSettingsTabCheck(tab, action === 'status' ? 'edit' : action, checked)}
                       indent
                     />
                   ))

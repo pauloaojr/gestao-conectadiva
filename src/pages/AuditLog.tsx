@@ -2091,6 +2091,10 @@ const AuditLog = () => {
                         <SelectItem value="Serviços">Serviços</SelectItem>
                       </SelectGroup>
                       <SelectGroup>
+                        <SelectLabel className="text-muted-foreground font-semibold">Relatórios</SelectLabel>
+                        <SelectItem value="Repasses">Repasses</SelectItem>
+                      </SelectGroup>
+                      <SelectGroup>
                         <SelectLabel className="text-muted-foreground font-semibold">Sistema</SelectLabel>
                         <SelectItem value="SISTEMA::Configurações">Configurações (Sistema)</SelectItem>
                       </SelectGroup>

@@ -29,6 +29,9 @@ interface KanbanColumnProps {
   onStatusChange: (appointmentId: number | string, newStatus: string) => void;
   onEdit: (appointment: KanbanAppointment) => void;
   onDelete: (id: number | string) => void;
+  canUpdateStatus?: boolean;
+  canFullEdit?: boolean;
+  canDelete?: boolean;
 }
 
 const statusConfig = {
@@ -86,7 +89,10 @@ export const KanbanColumn = ({
   appointments,
   onStatusChange,
   onEdit,
-  onDelete
+  onDelete,
+  canUpdateStatus = true,
+  canFullEdit = true,
+  canDelete = true,
 }: KanbanColumnProps) => {
   const config = (statusConfig as Record<string, typeof defaultColumnConfig>)[status] ?? defaultColumnConfig;
   const Icon = config.icon;
@@ -103,6 +109,7 @@ export const KanbanColumn = ({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.currentTarget.classList.remove('ring-2', 'ring-primary');
+    if (!canUpdateStatus) return;
     const appointmentId = e.dataTransfer.getData('appointmentId');
     if (appointmentId) {
       onStatusChange(appointmentId, status);
@@ -115,9 +122,9 @@ export const KanbanColumn = ({
         "flex flex-col min-h-[400px] transition-all duration-300 border-none rounded-3xl overflow-hidden shadow-sm",
         config.bgColor,
       )}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
+      onDragOver={canUpdateStatus ? handleDragOver : undefined}
+      onDragLeave={canUpdateStatus ? handleDragLeave : undefined}
+      onDrop={canUpdateStatus ? handleDrop : undefined}
     >
       <CardHeader className={cn("pb-4 p-5", config.headerBg)}>
         <div className="flex items-center justify-between">
@@ -145,6 +152,9 @@ export const KanbanColumn = ({
                   onEdit={onEdit}
                   onDelete={onDelete}
                   onStatusChange={onStatusChange}
+                  canUpdateStatus={canUpdateStatus}
+                  canFullEdit={canFullEdit}
+                  canDelete={canDelete}
                 />
               ))
             )}
@@ -160,6 +170,9 @@ interface KanbanCardProps {
   onEdit: (appointment: KanbanAppointment) => void;
   onDelete: (id: number | string) => void;
   onStatusChange: (appointmentId: number | string, newStatus: string) => void;
+  canUpdateStatus?: boolean;
+  canFullEdit?: boolean;
+  canDelete?: boolean;
 }
 
 const quickActionClass: Record<string, string> = {
@@ -169,7 +182,15 @@ const quickActionClass: Record<string, string> = {
   cancelled: "bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20",
 };
 
-const KanbanCard = ({ appointment, onEdit, onDelete, onStatusChange }: KanbanCardProps) => {
+const KanbanCard = ({
+  appointment,
+  onEdit,
+  onDelete,
+  onStatusChange,
+  canUpdateStatus = true,
+  canFullEdit = true,
+  canDelete = true,
+}: KanbanCardProps) => {
   const { statuses: statusList, getLabel } = useAppointmentStatusConfigContext();
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData('appointmentId', appointment.id.toString());
@@ -182,9 +203,9 @@ const KanbanCard = ({ appointment, onEdit, onDelete, onStatusChange }: KanbanCar
 
   return (
     <div
-      draggable
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
+      draggable={canUpdateStatus}
+      onDragStart={canUpdateStatus ? handleDragStart : undefined}
+      onDragEnd={canUpdateStatus ? handleDragEnd : undefined}
       className={cn(
         "bg-card border rounded-lg p-2 sm:p-3 shadow-sm cursor-grab active:cursor-grabbing",
         "hover:shadow-md transition-all",
@@ -227,7 +248,8 @@ const KanbanCard = ({ appointment, onEdit, onDelete, onStatusChange }: KanbanCar
         </div>
       )}
 
-      {/* Quick Actions - Always visible on mobile, hover on desktop */}
+      {/* Quick Actions - Status change buttons (when canUpdateStatus) */}
+      {canUpdateStatus && (
       <div className="flex flex-wrap gap-1.5 mt-4 pt-3 border-t border-border/40 opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-300">
         {statusList
           .filter((s) => s.key !== appointment.status)
@@ -247,9 +269,12 @@ const KanbanCard = ({ appointment, onEdit, onDelete, onStatusChange }: KanbanCar
             </button>
           ))}
       </div>
+      )}
 
-      {/* Edit/Delete - Always visible on mobile, hover on desktop */}
+      {/* Edit/Delete */}
+      {(canFullEdit || canDelete) && (
       <div className="flex gap-1 mt-1.5 sm:mt-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+        {canFullEdit && (
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -259,6 +284,8 @@ const KanbanCard = ({ appointment, onEdit, onDelete, onStatusChange }: KanbanCar
         >
           Editar
         </button>
+        )}
+        {canDelete && (
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -268,7 +295,9 @@ const KanbanCard = ({ appointment, onEdit, onDelete, onStatusChange }: KanbanCar
         >
           Excluir
         </button>
+        )}
       </div>
+      )}
     </div>
   );
 };

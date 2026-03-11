@@ -51,7 +51,8 @@ export type UserRole = 'admin' | 'manager' | 'user';
 
 export interface UserPermissions {
   dashboard: boolean;
-  reports: boolean;
+  /** Relatórios: view = acessa relatórios; edit/delete = acessa e vê coluna "Data do Recebimento" no Repasses */
+  reports?: PermissionLevel | boolean;
   financial?: boolean;
   /** Recursos com nível: none | view | edit | delete (legado: boolean = delete | none) */
   patients?: PermissionLevel | boolean;

@@ -132,6 +132,8 @@ export type Database = {
           patient_id: string | null
           patient_name: string | null
           category_id: string | null
+          received_at: string | null
+          appointment_id: string | null
           created_at: string
           updated_at: string
         }
@@ -144,6 +146,8 @@ export type Database = {
           patient_id?: string | null
           patient_name?: string | null
           category_id?: string | null
+          received_at?: string | null
+          appointment_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -156,6 +160,8 @@ export type Database = {
           patient_id?: string | null
           patient_name?: string | null
           category_id?: string | null
+          received_at?: string | null
+          appointment_id?: string | null
           created_at?: string
           updated_at?: string
         }

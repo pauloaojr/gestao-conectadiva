@@ -117,6 +117,15 @@ export const AppointmentModal = ({
     return map;
   }, [allRevenue, paidRevenueStatusKeys]);
 
+  /** Quantidade de agendamentos já existentes por paciente (para contabilizar sessões já usadas). */
+  const appointmentCountByPatientId = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const a of existingAppointments) {
+      if (a.patient_id) map[a.patient_id] = (map[a.patient_id] ?? 0) + 1;
+    }
+    return map;
+  }, [existingAppointments]);
+
   /** Retorna o número de sessões liberadas do paciente (0 se sem plano ou sem receitas pagas). */
   const getSessionsLiberated = useCallback(
     (patientId?: string): number => {
@@ -588,6 +597,18 @@ export const AppointmentModal = ({
                         {form.formState.errors.patient && (
                           <p className="text-destructive text-xs font-medium">{form.formState.errors.patient.message}</p>
                         )}
+                        {watch('patientId') && (() => {
+                          const pid = watch('patientId');
+                          const lib = getSessionsLiberated(pid);
+                          const ex = pid ? (appointmentCountByPatientId[pid] ?? 0) : 0;
+                          const remaining = Math.max(0, lib - ex);
+                          if (lib <= 0) return null;
+                          return (
+                            <p className="text-xs text-muted-foreground pt-1">
+                              {remaining} de {lib} sessões disponíveis para este paciente{ex > 0 ? ` (${ex} já agendada(s))` : ''}.
+                            </p>
+                          );
+                        })()}
                       </div>
                       <FormField
                         control={form.control}
@@ -830,46 +851,63 @@ export const AppointmentModal = ({
                           );
                         })}
 
-                        {!isEditMode && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="w-full h-11 rounded-xl border-dashed font-bold text-xs uppercase tracking-wider gap-2"
-                            style={{ borderColor: customizationData?.primaryColor, color: customizationData?.primaryColor }}
-                            onClick={() => {
-                              const patientId = watch('patientId');
-                              const sessionsLiberated = getSessionsLiberated(patientId);
-                              const currentSlots = form.getValues('slots')?.length ?? 0;
-
-                              if (!patientId || sessionsLiberated <= 0) {
-                                toast({
-                                  title: "Sem sessões liberadas",
-                                  description: "Este paciente não possui sessões liberadas pelo plano. Registre o pagamento do plano antes de adicionar mais dias.",
-                                  variant: "destructive",
-                                });
-                                return;
-                              }
-                              if (currentSlots >= sessionsLiberated) {
-                                toast({
-                                  title: "Limite de sessões atingido",
-                                  description: `Você possui ${sessionsLiberated} sessão(ões) liberada(s). Não é possível adicionar mais dias.`,
-                                  variant: "destructive",
-                                });
-                                return;
-                              }
-
-                              const slotsAtual = form.getValues('slots') ?? [];
-                              const last = slotsAtual[slotsAtual.length - 1];
-                              appendSlot({
-                                date: last?.date ? addDays(last.date instanceof Date ? last.date : new Date(last.date), 1) : selectedDate,
-                                time: '',
-                              });
-                            }}
-                          >
-                            <Plus className="h-4 w-4" />
-                            Próximo Dia
-                          </Button>
-                        )}
+                        {!isEditMode && (() => {
+                          const patientId = watch('patientId');
+                          const sessionsLiberated = getSessionsLiberated(patientId);
+                          const existingCount = patientId ? (appointmentCountByPatientId[patientId] ?? 0) : 0;
+                          const remainingSlots = Math.max(0, sessionsLiberated - existingCount);
+                          const currentSlots = form.getValues('slots')?.length ?? 0;
+                          const atLimit = currentSlots >= remainingSlots;
+                          const canAddMore = remainingSlots > 0 && !atLimit;
+                          return (
+                            <div className="space-y-2">
+                              {patientId && sessionsLiberated > 0 && (
+                                <p className="text-xs text-muted-foreground text-center">
+                                  {Math.max(0, remainingSlots - currentSlots)} sessão(ões) restante(s) após estes agendamentos (de {sessionsLiberated} liberadas; {existingCount} já agendada(s)).
+                                </p>
+                              )}
+                              <Button
+                                type="button"
+                                variant="outline"
+                                disabled={!patientId || sessionsLiberated <= 0 || atLimit}
+                                className="w-full h-11 rounded-xl border-dashed font-bold text-xs uppercase tracking-wider gap-2 disabled:opacity-60"
+                                style={canAddMore ? { borderColor: customizationData?.primaryColor, color: customizationData?.primaryColor } : undefined}
+                                onClick={() => {
+                                  const pid = watch('patientId');
+                                  const lib = getSessionsLiberated(pid);
+                                  const ex = pid ? (appointmentCountByPatientId[pid] ?? 0) : 0;
+                                  const rem = Math.max(0, lib - ex);
+                                  const cur = form.getValues('slots')?.length ?? 0;
+                                  if (!pid || lib <= 0) {
+                                    toast({
+                                      title: "Sem sessões liberadas",
+                                      description: "Este paciente não possui sessões liberadas pelo plano. Registre o pagamento do plano antes de adicionar mais dias.",
+                                      variant: "destructive",
+                                    });
+                                    return;
+                                  }
+                                  if (cur >= rem) {
+                                    toast({
+                                      title: "Limite de sessões atingido",
+                                      description: `Este paciente possui ${ex} agendamento(s) e ${lib} sessão(ões) liberada(s). Restam ${rem} sessão(ões). Não é possível adicionar mais dias.`,
+                                      variant: "destructive",
+                                    });
+                                    return;
+                                  }
+                                  const slotsAtual = form.getValues('slots') ?? [];
+                                  const last = slotsAtual[slotsAtual.length - 1];
+                                  appendSlot({
+                                    date: last?.date ? addDays(last.date instanceof Date ? last.date : new Date(last.date), 1) : selectedDate,
+                                    time: '',
+                                  });
+                                }}
+                              >
+                                <Plus className="h-4 w-4" />
+                                {atLimit && remainingSlots > 0 ? "Limite atingido" : "Próximo Dia"}
+                              </Button>
+                            </div>
+                          );
+                        })()}
                         {form.formState.errors.slots && (
                           <p className="text-destructive text-xs font-bold">{form.formState.errors.slots.message}</p>
                         )}

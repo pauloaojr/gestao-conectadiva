@@ -1,14 +1,16 @@
 /**
- * Níveis de permissão por recurso: nenhum, visualizar, editar ou deletar.
+ * Níveis de permissão por recurso: nenhum, visualizar, alterar status (Agenda), editar ou deletar.
  * Editar implica visualizar; Deletar implica editar e visualizar.
+ * Para Agenda: 'status' = apenas alterar status; 'edit' = edição completa.
  */
-export type PermissionLevel = 'none' | 'view' | 'edit' | 'delete';
+export type PermissionLevel = 'none' | 'view' | 'status' | 'edit' | 'delete';
 
 /** Recursos que possuem permissão granular (visualizar / editar / deletar) */
 export type GranularResource =
   | 'patients'
   | 'medicalRecords'
   | 'schedule'
+  | 'reports'
   | 'settings'
   | 'userManagement'
   | 'scheduleManagement'
@@ -48,10 +50,14 @@ export const SETTINGS_TAB_LABELS: Record<SettingsTabId, string> = {
   users: 'Usuários',
 };
 
-/** Verifica se o nível de permissão permite a ação (view < edit < delete) */
-export function levelAllows(level: PermissionLevel, action: 'view' | 'edit' | 'delete'): boolean {
+/** Ações de permissão: 'status' aplica-se apenas a Agenda (alterar status do agendamento) */
+export type PermissionAction = 'view' | 'status' | 'edit' | 'delete';
+
+/** Verifica se o nível de permissão permite a ação (view < status < edit < delete para Agenda) */
+export function levelAllows(level: PermissionLevel, action: PermissionAction): boolean {
   if (level === 'none') return false;
-  if (action === 'view') return level === 'view' || level === 'edit' || level === 'delete';
+  if (action === 'view') return level === 'view' || level === 'status' || level === 'edit' || level === 'delete';
+  if (action === 'status') return level === 'status' || level === 'edit' || level === 'delete';
   if (action === 'edit') return level === 'edit' || level === 'delete';
   if (action === 'delete') return level === 'delete';
   return false;
@@ -61,7 +67,7 @@ export function levelAllows(level: PermissionLevel, action: 'view' | 'edit' | 'd
 export function normalizePermissionLevel(value: unknown): PermissionLevel {
   if (value === true) return 'delete';
   if (value === false || value === undefined || value === null) return 'none';
-  if (value === 'view' || value === 'edit' || value === 'delete') return value;
+  if (value === 'view' || value === 'status' || value === 'edit' || value === 'delete') return value;
   return 'none';
 }
 
@@ -70,6 +76,7 @@ export interface PermissionsLike {
   patients?: PermissionLevel | boolean;
   medicalRecords?: PermissionLevel | boolean;
   schedule?: PermissionLevel | boolean;
+  reports?: PermissionLevel | boolean;
   settings?: PermissionLevel | boolean;
   userManagement?: PermissionLevel | boolean;
   scheduleManagement?: PermissionLevel | boolean;
@@ -98,6 +105,7 @@ export function getDefaultGranularPermissions(): Record<GranularResource, Permis
     patients: 'none',
     medicalRecords: 'none',
     schedule: 'none',
+    reports: 'none',
     settings: 'none',
     userManagement: 'none',
     scheduleManagement: 'none',
@@ -112,7 +120,7 @@ export function getDefaultGranularPermissions(): Record<GranularResource, Permis
 /** Normaliza permissões legadas (boolean) para formato com níveis (para exibição em formulário) */
 export function normalizePermissionsForForm(
   raw: PermissionsLike & { dashboard?: boolean; reports?: boolean; financial?: boolean }
-): PermissionsLike & { dashboard: boolean; reports: boolean; financial?: boolean } {
+): PermissionsLike & { dashboard: boolean; financial?: boolean } {
   const defaults = getDefaultGranularPermissions();
   const tabs = { ...defaults.settingsTabs };
   if (raw.settingsTabs) {
@@ -122,7 +130,7 @@ export function normalizePermissionsForForm(
   }
   return {
     dashboard: raw.dashboard ?? true,
-    reports: raw.reports ?? false,
+    reports: normalizePermissionLevel((raw as Record<string, unknown>).reports ?? 'none'),
     financial: raw.financial ?? false,
     patients: normalizePermissionLevel((raw as Record<string, unknown>).patients ?? 'none'),
     medicalRecords: normalizePermissionLevel((raw as Record<string, unknown>).medicalRecords ?? 'none'),
@@ -135,12 +143,13 @@ export function normalizePermissionsForForm(
     api: normalizePermissionLevel((raw as Record<string, unknown>).api ?? 'none'),
     audit: normalizePermissionLevel((raw as Record<string, unknown>).audit ?? 'none'),
     settingsTabs: tabs,
-  } as PermissionsLike & { dashboard: boolean; reports: boolean; financial?: boolean };
+  } as PermissionsLike & { dashboard: boolean; financial?: boolean };
 }
 
 const LEVEL_LABEL: Record<PermissionLevel, string> = {
   none: 'Nenhum',
   view: 'Visualizar',
+  status: 'Alterar Status',
   edit: 'Editar',
   delete: 'Deletar',
 };
@@ -148,7 +157,7 @@ const LEVEL_LABEL: Record<PermissionLevel, string> = {
 /** Conta quantos recursos/abas têm permissão diferente de "none" */
 export function countNonNonePermissions(permissions: PermissionsLike): number {
   let n = 0;
-  for (const r of ['patients', 'medicalRecords', 'schedule', 'settings', 'userManagement', 'scheduleManagement', 'serviceManagement', 'integrations', 'api', 'audit'] as const) {
+  for (const r of ['patients', 'medicalRecords', 'schedule', 'reports', 'settings', 'userManagement', 'scheduleManagement', 'serviceManagement', 'integrations', 'api', 'audit'] as const) {
     if (normalizePermissionLevel((permissions as Record<string, unknown>)[r]) !== 'none') n++;
   }
   if (permissions.settingsTabs) {
@@ -167,7 +176,7 @@ export function formatPermissionsSummary(
   maxItems = 5
 ): string {
   const parts: string[] = [];
-  for (const r of ['patients', 'medicalRecords', 'schedule', 'settings', 'userManagement', 'scheduleManagement', 'serviceManagement', 'integrations', 'api', 'audit'] as const) {
+  for (const r of ['patients', 'medicalRecords', 'schedule', 'reports', 'settings', 'userManagement', 'scheduleManagement', 'serviceManagement', 'integrations', 'api', 'audit'] as const) {
     const level = normalizePermissionLevel((permissions as Record<string, unknown>)[r]);
     if (level !== 'none') parts.push(`${resourceLabels[r] ?? r}: ${LEVEL_LABEL[level]}`);
   }

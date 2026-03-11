@@ -22,6 +22,7 @@ import Schedule from "./pages/Schedule";
 import Reports from "./pages/Reports";
 import ReportsAppointments from "./pages/ReportsAppointments";
 import ReportsFinancial from "./pages/ReportsFinancial";
+import ReportsRepasses from "./pages/ReportsRepasses";
 import Settings from "./pages/Settings";
 import MedicalRecords from "./pages/MedicalRecords";
 import Prescriptions from "./pages/Prescriptions";
@@ -134,6 +135,14 @@ function AppContent() {
                             element={
                               <ProtectedRoute requiredPermission="reports">
                                 <ReportsFinancial />
+                              </ProtectedRoute>
+                            }
+                          />
+                          <Route
+                            path="/relatorios/repasses"
+                            element={
+                              <ProtectedRoute requiredPermission="reports">
+                                <ReportsRepasses />
                               </ProtectedRoute>
                             }
                           />

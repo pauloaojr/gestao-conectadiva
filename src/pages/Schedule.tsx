@@ -24,6 +24,13 @@ import { usePlans } from "@/hooks/usePlans";
 import { useRevenue } from "@/hooks/useRevenue";
 import { useCustomizationContext } from "@/contexts/CustomizationContext";
 import { useAppointmentStatusConfigContext } from "@/contexts/AppointmentStatusConfigContext";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  canSeeAllSchedule,
+  canUpdateScheduleStatus,
+  canFullEditSchedule,
+  canDeleteSchedule,
+} from "@/utils/reportsVisibility";
 import { useRevenueStatusConfigContext } from "@/contexts/RevenueStatusConfigContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -57,6 +64,7 @@ const Schedule = () => {
   const isMobile = useIsMobile();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
+  const { user, hasPermission } = useAuth();
   const { appointments: supabaseAppointments, isLoading, addAppointment, updateAppointment, deleteAppointment } = useAppointments();
   const { patients } = usePatients();
   const { profiles } = useProfiles();
@@ -79,6 +87,20 @@ const Schedule = () => {
   const [patientSearch, setPatientSearch] = useState("");
   const [professionalSearch, setProfessionalSearch] = useState("");
 
+  /** Vê todos os agendamentos ou apenas os próprios (Admin/Gerente ou edit/delete em Agenda) */
+  const canSeeAll = useMemo(() => canSeeAllSchedule(hasPermission, user), [hasPermission, user]);
+  /** Pode alterar status do agendamento (sem editar completo) */
+  const canUpdateStatus = useMemo(() => canUpdateScheduleStatus(hasPermission), [hasPermission]);
+  /** Pode editar completamente o agendamento */
+  const canFullEdit = useMemo(() => canFullEditSchedule(hasPermission), [hasPermission]);
+  /** Pode deletar agendamento */
+  const canDelete = useMemo(() => canDeleteSchedule(hasPermission), [hasPermission]);
+  /** Lista base para exibição: quando restrito, apenas agendamentos do usuário logado */
+  const baseAppointmentsForDisplay = useMemo(() => {
+    if (canSeeAll || !user?.id) return supabaseAppointments;
+    return supabaseAppointments.filter((a) => a.attendant_id === user.id);
+  }, [supabaseAppointments, canSeeAll, user?.id]);
+
   // Aplicar filtro de paciente vindo da URL (ex.: ao clicar em Agendamento na tela de Pacientes)
   useEffect(() => {
     const patientFromUrl = searchParams.get("patient");
@@ -87,9 +109,14 @@ const Schedule = () => {
     }
   }, [searchParams]);
 
-  // Transform Supabase appointments to local format
+  // Ao entrar no modo restrito, limpar filtro de profissional (não se aplica)
+  useEffect(() => {
+    if (!canSeeAll) setProfessionalSearch("");
+  }, [canSeeAll]);
+
+  // Transform Supabase appointments to local format (usa lista restrita quando aplicável)
   const appointments: Appointment[] = useMemo(() => {
-    return supabaseAppointments.map(apt => ({
+    return baseAppointmentsForDisplay.map(apt => ({
       id: apt.id,
       time: apt.appointment_time,
       patient: apt.patient_name,
@@ -103,7 +130,7 @@ const Schedule = () => {
       serviceId: apt.service_id || undefined,
       serviceName: apt.service_name || undefined
     }));
-  }, [supabaseAppointments]);
+  }, [baseAppointmentsForDisplay]);
 
   // Helper: apply patient and professional search filters (definido antes de ser usado em useMemos)
   const applySearchFilters = (list: Appointment[]) => {
@@ -576,17 +603,19 @@ const Schedule = () => {
             <Printer className="w-4 h-4 mr-2" />
             <span className="hidden sm:inline">Imprimir</span>
           </Button>
-          <Button
-            className="clinic-gradient text-white"
-            size="sm"
-            onClick={() => {
-              setEditingAppointment(null);
-              setIsAppointmentModalOpen(true);
-            }}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Novo Agendamento
-          </Button>
+          {canFullEdit && (
+            <Button
+              className="clinic-gradient text-white"
+              size="sm"
+              onClick={() => {
+                setEditingAppointment(null);
+                setIsAppointmentModalOpen(true);
+              }}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Novo Agendamento
+            </Button>
+          )}
         </div>
       </div>
 
@@ -611,25 +640,36 @@ const Schedule = () => {
             ))}
           </datalist>
         </div>
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-            <Search className="w-3.5 h-3.5" />
-            Busca por Profissional
-          </label>
-          <Input
-            placeholder="Digite o nome do profissional..."
-            value={professionalSearch}
-            onChange={(e) => setProfessionalSearch(e.target.value)}
-            className="h-9"
-            list="schedule-professional-list"
-            autoComplete="off"
-          />
-          <datalist id="schedule-professional-list">
-            {professionalOptionsFromTable.map((p) => (
-              <option key={p.id} value={p.name} />
-            ))}
-          </datalist>
-        </div>
+        {canSeeAll ? (
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+              <Search className="w-3.5 h-3.5" />
+              Busca por Profissional
+            </label>
+            <Input
+              placeholder="Digite o nome do profissional..."
+              value={professionalSearch}
+              onChange={(e) => setProfessionalSearch(e.target.value)}
+              className="h-9"
+              list="schedule-professional-list"
+              autoComplete="off"
+            />
+            <datalist id="schedule-professional-list">
+              {professionalOptionsFromTable.map((p) => (
+                <option key={p.id} value={p.name} />
+              ))}
+            </datalist>
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+              Exibindo
+            </label>
+            <div className="flex h-9 items-center rounded-md border px-3 py-2 text-sm text-muted-foreground">
+              Apenas seus agendamentos
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Stats Cards - ordem e itens vêm de Configurações > Status Agenda */}
@@ -756,16 +796,18 @@ const Schedule = () => {
                       <p className="text-sm text-muted-foreground mb-4">
                         Que tal criar um novo agendamento?
                       </p>
-                      <Button
-                        className="clinic-gradient text-white"
-                        onClick={() => {
-                          setEditingAppointment(null);
-                          setIsAppointmentModalOpen(true);
-                        }}
-                      >
-                        <Plus className="w-4 h-4 mr-2" />
-                        Novo Agendamento
-                      </Button>
+                      {canFullEdit && (
+                        <Button
+                          className="clinic-gradient text-white"
+                          onClick={() => {
+                            setEditingAppointment(null);
+                            setIsAppointmentModalOpen(true);
+                          }}
+                        >
+                          <Plus className="w-4 h-4 mr-2" />
+                          Novo Agendamento
+                        </Button>
+                      )}
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -776,6 +818,9 @@ const Schedule = () => {
                           onEdit={handleEditAppointment}
                           onDelete={handleDeleteAppointment}
                           onStatusChange={handleOpenStatusModal}
+                          canUpdateStatus={canUpdateStatus}
+                          canFullEdit={canFullEdit}
+                          canDelete={canDelete}
                         />
                       ))}
                       {renderPagination()}
@@ -861,6 +906,9 @@ const Schedule = () => {
                             onEdit={handleEditAppointment}
                             onDelete={handleDeleteAppointment}
                             onStatusChange={handleOpenStatusModal}
+                            canUpdateStatus={canUpdateStatus}
+                            canFullEdit={canFullEdit}
+                            canDelete={canDelete}
                           />
                         ))}
                       </div>
@@ -890,6 +938,9 @@ const Schedule = () => {
                     onStatusChange={handleKanbanStatusChange}
                     onEdit={handleEditAppointment}
                     onDelete={handleDeleteAppointment}
+                    canUpdateStatus={canUpdateStatus}
+                    canFullEdit={canFullEdit}
+                    canDelete={canDelete}
                   />
                 </CardContent>
               </Card>

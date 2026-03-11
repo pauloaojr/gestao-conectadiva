@@ -28,6 +28,12 @@ interface AppointmentCardProps {
   onEdit: (appointment: Appointment) => void;
   onDelete: (id: number | string) => void;
   onStatusChange: (appointment: Appointment) => void;
+  /** Pode alterar apenas o status (padrão true para compatibilidade) */
+  canUpdateStatus?: boolean;
+  /** Pode editar completamente (padrão true) */
+  canFullEdit?: boolean;
+  /** Pode deletar (padrão true) */
+  canDelete?: boolean;
 }
 
 const statusBadgeClass: Record<string, string> = {
@@ -37,7 +43,15 @@ const statusBadgeClass: Record<string, string> = {
   completed: "bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 shadow-none border-blue-500/20",
 };
 
-export const AppointmentCard = ({ appointment, onEdit, onDelete, onStatusChange }: AppointmentCardProps) => {
+export const AppointmentCard = ({
+  appointment,
+  onEdit,
+  onDelete,
+  onStatusChange,
+  canUpdateStatus = true,
+  canFullEdit = true,
+  canDelete = true,
+}: AppointmentCardProps) => {
   const isMobile = useIsMobile();
   const { customizationData } = useCustomizationContext();
   const { getLabel } = useAppointmentStatusConfigContext();
@@ -146,9 +160,13 @@ export const AppointmentCard = ({ appointment, onEdit, onDelete, onStatusChange 
             <div className="flex-1 min-w-0">
               <div className="flex flex-wrap items-center gap-3 mb-2">
                 <span className="text-lg font-black text-foreground tracking-tight">{appointment.time}</span>
-                <div onClick={() => onStatusChange(appointment)} className="cursor-pointer transition-transform active:scale-95">
-                  {getStatusBadge(appointment.status)}
-                </div>
+                {canUpdateStatus ? (
+                  <div onClick={() => onStatusChange(appointment)} className="cursor-pointer transition-transform active:scale-95">
+                    {getStatusBadge(appointment.status)}
+                  </div>
+                ) : (
+                  getStatusBadge(appointment.status)
+                )}
               </div>
               <div className="flex items-center gap-2 mb-2">
                 <User className="w-4 h-4 text-muted-foreground" />
@@ -163,16 +181,18 @@ export const AppointmentCard = ({ appointment, onEdit, onDelete, onStatusChange 
           </div>
 
           {/* Desktop Actions */}
-          {!isMobile && (
+          {!isMobile && (canFullEdit || canDelete) && (
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 translate-x-4 group-hover:translate-x-0 transition-all duration-300">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-9 h-9 p-0 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full"
-                onClick={() => onEdit(appointment)}
-              >
-                <Edit className="w-4 h-4" />
-              </Button>
+              {canFullEdit && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-9 h-9 p-0 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full"
+                  onClick={() => onEdit(appointment)}
+                >
+                  <Edit className="w-4 h-4" />
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
@@ -181,14 +201,16 @@ export const AppointmentCard = ({ appointment, onEdit, onDelete, onStatusChange 
               >
                 <Printer className="w-4 h-4" />
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-9 h-9 p-0 text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 rounded-full"
-                onClick={() => onDelete(appointment.id)}
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
+              {canDelete && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-9 h-9 p-0 text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 rounded-full"
+                  onClick={() => onDelete(appointment.id)}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              )}
             </div>
           )}
 
@@ -205,28 +227,34 @@ export const AppointmentCard = ({ appointment, onEdit, onDelete, onStatusChange 
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48 rounded-xl border-border/50">
-                <DropdownMenuItem onClick={() => onEdit(appointment)} className="font-medium">
-                  <Edit className="w-4 h-4 mr-2 text-primary" />
-                  Editar
-                </DropdownMenuItem>
+                {canFullEdit && (
+                  <DropdownMenuItem onClick={() => onEdit(appointment)} className="font-medium">
+                    <Edit className="w-4 h-4 mr-2 text-primary" />
+                    Editar
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={handlePrintAppointment} className="font-medium">
                   <Printer className="w-4 h-4 mr-2 text-emerald-500" />
                   Imprimir
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => onStatusChange(appointment)}
-                  className="sm:hidden font-medium"
-                >
-                  <Activity className="w-4 h-4 mr-2 text-amber-500" />
-                  Alterar Status
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => onDelete(appointment.id)}
-                  className="text-rose-500 hover:text-rose-600 font-bold"
-                >
+                {canUpdateStatus && (
+                  <DropdownMenuItem
+                    onClick={() => onStatusChange(appointment)}
+                    className="sm:hidden font-medium"
+                  >
+                    <Activity className="w-4 h-4 mr-2 text-amber-500" />
+                    Alterar Status
+                  </DropdownMenuItem>
+                )}
+                {canDelete && (
+                  <DropdownMenuItem
+                    onClick={() => onDelete(appointment.id)}
+                    className="text-rose-500 hover:text-rose-600 font-bold"
+                  >
                   <Trash2 className="w-4 h-4 mr-2" />
                   Excluir
                 </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           )}

@@ -32,8 +32,8 @@ interface AuthContextType {
   changePassword: (currentPassword: string, newPassword: string) => Promise<boolean>;
   isLoading: boolean;
   isPasswordExpired: () => boolean;
-  /** Verifica permissão. Para recursos granulares (patients, schedule, etc.) use action 'view'|'edit'|'delete'; para settings use settingsTab para aba. */
-  hasPermission: (permission: keyof UserPermissions, action?: 'view' | 'edit' | 'delete', settingsTab?: SettingsTabId) => boolean;
+  /** Verifica permissão. Para recursos granulares use action 'view'|'status'|'edit'|'delete'; 'status' aplica-se à Agenda (alterar status); para settings use settingsTab para aba. */
+  hasPermission: (permission: keyof UserPermissions, action?: 'view' | 'status' | 'edit' | 'delete', settingsTab?: SettingsTabId) => boolean;
   getUserPermissions: () => UserPermissions;
 }
 
@@ -400,7 +400,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const hasPermission = (
     permission: keyof UserPermissions,
-    action: 'view' | 'edit' | 'delete' = 'view',
+    action: 'view' | 'status' | 'edit' | 'delete' = 'view',
     settingsTab?: SettingsTabId
   ): boolean => {
     if (!user || !user.role) return false;
@@ -409,7 +409,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!effectivePermissions) return false;
 
     const granularResources: (keyof UserPermissions)[] = [
-      'patients', 'medicalRecords', 'schedule', 'settings',
+      'patients', 'medicalRecords', 'schedule', 'reports', 'settings',
       'userManagement', 'scheduleManagement', 'serviceManagement',
       'integrations', 'audit',
     ];
@@ -424,7 +424,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const getUserPermissions = (): UserPermissions => {
     const empty: UserPermissions = {
       dashboard: false,
-      reports: false,
+      reports: 'none',
       financial: false,
       patients: 'none',
       medicalRecords: 'none',

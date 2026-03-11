@@ -15,6 +15,8 @@ export interface RevenueItem {
   date: string;
   status: string;
   source: 'appointment' | 'manual';
+  /** Data em que a receita passou para status Recebida; null se pendente */
+  receivedAt?: string | null;
   appointmentId?: string;
   patientId?: string | null;
   patientName?: string;
@@ -33,6 +35,8 @@ export interface ManualRevenueRow {
   patient_id: string | null;
   patient_name: string | null;
   category_id: string | null;
+  received_at: string | null;
+  appointment_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -116,6 +120,7 @@ export const useRevenue = () => {
       date: r.revenue_date,
       status: r.status,
       source: 'manual' as const,
+      receivedAt: r.received_at ?? undefined,
       patientId: r.patient_id ?? undefined,
       patientName: r.patient_name ?? undefined,
       categoryId: r.category_id ?? undefined,

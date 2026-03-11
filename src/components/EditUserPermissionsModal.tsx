@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { User, UserPermissions, ROLE_PERMISSIONS } from '@/types/user';
+import { normalizePermissionLevel } from '@/types/permissions';
 import { useToast } from '@/hooks/use-toast';
 import { Settings, Save, X } from 'lucide-react';
 
@@ -40,7 +41,7 @@ export const EditUserPermissionsModal = ({
       patients: false,
       medicalRecords: false,
       schedule: false,
-      reports: false,
+      reports: 'none',
       settings: false,
       userManagement: false,
       scheduleManagement: false,
@@ -61,10 +62,11 @@ export const EditUserPermissionsModal = ({
   }, [user, open]);
 
   const handlePermissionChange = (permission: keyof UserPermissions, checked: boolean) => {
-    setPermissions(prev => ({
-      ...prev,
-      [permission]: checked
-    }));
+    if (permission === 'reports') {
+      setPermissions(prev => ({ ...prev, reports: checked ? 'view' : 'none' }));
+      return;
+    }
+    setPermissions(prev => ({ ...prev, [permission]: checked }));
   };
 
   const handleSave = () => {
@@ -110,13 +112,18 @@ export const EditUserPermissionsModal = ({
             <Label className="text-base font-medium">Selecione as abas que o usuário poderá acessar:</Label>
             
             <div className="space-y-3">
-              {Object.entries(PERMISSION_LABELS).map(([permission, label]) => (
+              {Object.entries(PERMISSION_LABELS).map(([permission, label]) => {
+                const isReports = permission === 'reports';
+                const checked = isReports
+                  ? normalizePermissionLevel(permissions.reports) !== 'none'
+                  : !!(permissions[permission as keyof UserPermissions]);
+                return (
                 <div key={permission} className="flex items-center space-x-3">
                   <Checkbox
                     id={permission}
-                    checked={permissions[permission as keyof UserPermissions] || false}
-                    onCheckedChange={(checked) => 
-                      handlePermissionChange(permission as keyof UserPermissions, checked as boolean)
+                    checked={checked}
+                    onCheckedChange={(c) =>
+                      handlePermissionChange(permission as keyof UserPermissions, c === true)
                     }
                   />
                   <Label 
@@ -126,7 +133,7 @@ export const EditUserPermissionsModal = ({
                     {label}
                   </Label>
                 </div>
-              ))}
+              ); })}
             </div>
           </div>
 
