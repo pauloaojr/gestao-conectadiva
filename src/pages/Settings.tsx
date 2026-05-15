@@ -302,9 +302,18 @@ const Settings = () => {
       return;
     }
 
-    const success = await changePassword(passwordData.currentPassword, passwordData.newPassword);
+    if (passwordData.currentPassword === passwordData.newPassword) {
+      toast({
+        title: "Erro",
+        description: "A nova senha deve ser diferente da senha atual.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    if (success) {
+    const result = await changePassword(passwordData.currentPassword, passwordData.newPassword);
+
+    if (result.success) {
       await recordSystemAuditLog({
         menuGroup: "SISTEMA",
         menu: "Configurações",
@@ -326,7 +335,7 @@ const Settings = () => {
     } else {
       toast({
         title: "Erro",
-        description: "Senha atual incorreta.",
+        description: result.message,
         variant: "destructive",
       });
     }

@@ -24,12 +24,16 @@ interface User {
 
 export type LoginResult = { success: true } | { success: false; errorCode?: string };
 
+export type ChangePasswordResult =
+  | { success: true }
+  | { success: false; message: string };
+
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<LoginResult>;
   register: (name: string, email: string, password: string) => Promise<boolean>;
   logout: () => void;
-  changePassword: (currentPassword: string, newPassword: string) => Promise<boolean>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<ChangePasswordResult>;
   isLoading: boolean;
   isPasswordExpired: () => boolean;
   /** Verifica permissão. Para recursos granulares use action 'view'|'status'|'edit'|'delete'; 'status' aplica-se à Agenda (alterar status); para settings use settingsTab para aba. */
@@ -356,35 +360,79 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const changePassword = async (currentPassword: string, newPassword: string): Promise<boolean> => {
+  const changePassword = async (
+    currentPassword: string,
+    newPassword: string
+  ): Promise<ChangePasswordResult> => {
+    const email = user?.email?.trim();
+    if (!email) {
+      return { success: false, message: "Não foi possível identificar o e-mail da sessão." };
+    }
+
+    if (currentPassword === newPassword) {
+      return {
+        success: false,
+        message: "A nova senha deve ser diferente da senha atual.",
+      };
+    }
+
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword
+      const { error: verifyError } = await supabase.auth.signInWithPassword({
+        email,
+        password: currentPassword,
       });
 
-      if (error) {
-        console.error('Password change error:', error);
-        return false;
+      if (verifyError) {
+        return { success: false, message: "Senha atual incorreta." };
       }
 
-      // Update password changed date in metadata
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (updateError) {
+        console.error("Password change error:", updateError);
+        const msg = (updateError.message || "").toLowerCase();
+        if (
+          msg.includes("different") ||
+          msg.includes("same") ||
+          msg.includes("igual") ||
+          msg.includes("reused")
+        ) {
+          return {
+            success: false,
+            message: "A nova senha deve ser diferente da senha atual.",
+          };
+        }
+        if (msg.includes("least") || msg.includes("weak") || msg.includes("short")) {
+          return {
+            success: false,
+            message: updateError.message || "A nova senha não atende aos requisitos mínimos.",
+          };
+        }
+        return {
+          success: false,
+          message: updateError.message || "Não foi possível alterar a senha.",
+        };
+      }
+
       await supabase.auth.updateUser({
         data: {
-          password_changed_at: new Date().toISOString().split('T')[0]
-        }
+          password_changed_at: new Date().toISOString().split("T")[0],
+        },
       });
 
       if (user) {
         setUser({
           ...user,
-          passwordChangedAt: new Date().toISOString().split('T')[0]
+          passwordChangedAt: new Date().toISOString().split("T")[0],
         });
       }
 
-      return true;
+      return { success: true };
     } catch (err) {
-      console.error('Password change error:', err);
-      return false;
+      console.error("Password change error:", err);
+      return { success: false, message: "Erro inesperado ao alterar a senha." };
     }
   };
 
