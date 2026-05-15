@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { resolveBackendUrl } from "@/lib/backendUrl";
 import {
   NotificationEventKey,
   NotificationService,
@@ -383,11 +384,10 @@ async function sendEmail(
   if (!emailCfg?.enabled) {
     throw new Error("Integração de e-mail desativada.");
   }
-  if (!emailCfg.backend_url?.trim()) {
+  const baseUrl = resolveBackendUrl(emailCfg.backend_url);
+  if (!baseUrl) {
     throw new Error("URL do backend de e-mail não configurada.");
   }
-
-  const baseUrl = emailCfg.backend_url.replace(/\/+$/, "");
   const response = await fetch(`${baseUrl}/api/email/send`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -549,7 +549,7 @@ async function sendWhatsApp(
 }
 
 async function dispatchViaBackend(input: DispatchInput): Promise<boolean> {
-  const baseUrl = (import.meta.env.VITE_BACKEND_URL ?? "").toString().trim();
+  const baseUrl = resolveBackendUrl(null);
   if (!baseUrl) return false;
 
   try {

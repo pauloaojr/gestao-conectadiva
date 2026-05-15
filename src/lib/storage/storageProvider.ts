@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { resolveBackendUrl } from "@/lib/backendUrl";
 import { recordMinioAuditLog } from "@/services/minioAuditLog";
 
 export type StorageUploadInput = {
@@ -74,12 +75,6 @@ async function fileToBase64(file: File): Promise<string> {
   return btoa(binary);
 }
 
-function getConfiguredBackendUrl(raw: string | null | undefined): string | null {
-  const url = String(raw || "").trim();
-  if (!url) return null;
-  return url.replace(/\/+$/, "");
-}
-
 async function loadMinioRuntime(): Promise<{
   minio: RuntimeMinioConfig | null;
   backendUrl: string | null;
@@ -93,7 +88,7 @@ async function loadMinioRuntime(): Promise<{
     supabase.from("email_smtp_config").select("backend_url").limit(1).maybeSingle(),
   ]);
 
-  const backendUrl = getConfiguredBackendUrl(emailRow?.backend_url ?? null);
+  const backendUrl = resolveBackendUrl(emailRow?.backend_url ?? null);
   if (!minioRow || !minioRow.enabled) {
     return { minio: null, backendUrl };
   }

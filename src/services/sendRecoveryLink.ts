@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { resolveBackendUrl } from "@/lib/backendUrl";
 
 type EmailConfigRow = {
   enabled: boolean;
@@ -87,8 +88,8 @@ export async function sendRecoveryLinkChannels(
         .maybeSingle();
       if (error) throw error;
       const cfg = data as EmailConfigRow | null;
-      if (cfg?.enabled && cfg?.backend_url?.trim()) {
-        const baseUrl = cfg.backend_url.replace(/\/+$/, "");
+      const baseUrl = resolveBackendUrl(cfg?.backend_url);
+      if (cfg?.enabled && baseUrl) {
         const res = await fetch(`${baseUrl}/api/email/send`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },

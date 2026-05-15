@@ -33,6 +33,7 @@ import {
   Bell,
 } from "lucide-react";
 import { NotificationFailuresCard } from "@/components/NotificationFailuresCard";
+import { resolveBackendUrl } from "@/lib/backendUrl";
 
 type EvolutionInstance = {
   instanceName: string;
@@ -232,11 +233,12 @@ const Integrations = () => {
 
   const handleTestMinioConnection = async () => {
     const correlationId = crypto.randomUUID();
-    const backendUrl = emailConfig.backendUrl?.trim().replace(/\/+$/, "");
+    const backendUrl = resolveBackendUrl(emailConfig.backendUrl);
     if (!backendUrl) {
       toast({
         title: "Configure a URL do backend",
-        description: "Defina a URL do backend na aba E-mail para testar a conectividade do Minio.",
+        description:
+          "Defina VITE_BACKEND_URL no build de produção ou a URL do backend na aba E-mail (sem localhost em produção).",
         variant: "destructive",
       });
       return;
@@ -366,11 +368,11 @@ const Integrations = () => {
 
   const handleCleanupOrphans = async () => {
     const correlationId = crypto.randomUUID();
-    const backendUrl = emailConfig.backendUrl?.trim().replace(/\/+$/, "");
+    const backendUrl = resolveBackendUrl(emailConfig.backendUrl);
     if (!backendUrl) {
       toast({
         title: "Configure a URL do backend",
-        description: "Defina a URL do backend na aba E-mail antes da limpeza de órfãos.",
+        description: "Defina a URL do backend na aba E-mail ou VITE_BACKEND_URL no build antes da limpeza de órfãos.",
         variant: "destructive",
       });
       return;
@@ -622,7 +624,7 @@ const Integrations = () => {
   const canManageInstances = !!config.baseUrl && !!config.token;
 
   const handleTestSmtpConfig = async () => {
-    const baseUrl = emailConfig.backendUrl?.trim().replace(/\/+$/, "");
+    const baseUrl = resolveBackendUrl(emailConfig.backendUrl);
     if (!baseUrl) {
       toast({
         title: "Configure a URL do backend",
@@ -699,7 +701,7 @@ const Integrations = () => {
       });
       return;
     }
-    const baseUrl = emailConfig.backendUrl?.trim().replace(/\/+$/, "");
+    const baseUrl = resolveBackendUrl(emailConfig.backendUrl);
     if (!baseUrl || !emailConfig.host?.trim()) {
       toast({
         title: "Configure o backend e o SMTP",
@@ -1593,7 +1595,7 @@ const Integrations = () => {
                 <Input
                   id="backend-url"
                   type="url"
-                  placeholder="Ex.: https://seu-backend.railway.app ou http://localhost:3021"
+                  placeholder="Ex.: https://api-clinica.seudominio.com.br (em produção, VITE_BACKEND_URL do build tem prioridade)"
                   value={emailConfig.backendUrl ?? ""}
                   onChange={(e) =>
                     setEmailConfig((prev) => ({ ...prev, backendUrl: e.target.value || null }))
@@ -1601,7 +1603,7 @@ const Integrations = () => {
                   disabled={emailLoading || !canEditIntegrations}
                 />
                 <p className="text-xs text-muted-foreground">
-                  URL base do servidor que envia e-mails (sem barra no final). O front chama <code className="text-[11px]">/api/email/test</code> e <code className="text-[11px]">/api/email/send</code>.
+                  URL base do servidor Node (sem barra no final). Em produção, o valor do build (<code className="text-[11px]">VITE_BACKEND_URL</code>) substitui localhost salvo aqui. Usado também pelo MinIO.
                 </p>
               </div>
 

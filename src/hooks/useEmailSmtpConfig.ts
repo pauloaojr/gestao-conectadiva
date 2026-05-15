@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { resolveBackendUrl } from "@/lib/backendUrl";
 
 export type EmailSmtpConfig = {
   id?: string;
@@ -49,7 +50,7 @@ function rowToConfig(row: {
     password: row.password,
     fromName: row.from_name,
     fromEmail: row.from_email,
-    backendUrl: row.backend_url ?? null,
+    backendUrl: resolveBackendUrl(row.backend_url),
   };
 }
 
