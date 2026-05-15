@@ -1,0 +1,12 @@
+node_modules
+dist
+.git
+.cursor
+*.md
+backend
+supabase
+.env
+.env.*
+!.env.example
+coverage
+terminals

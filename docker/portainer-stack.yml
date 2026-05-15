@@ -1,0 +1,66 @@
+# Stack Swarm + Traefik – Clínica Pro (frontend + backend)
+# MinIO e Evolution API ficam em stacks separadas (não incluídas aqui).
+#
+# Antes do deploy:
+# 1. Construir imagens no manager (ver docs/DEPLOY-PORTAINER.md)
+# 2. Ajustar domínios nos labels Traefik
+# 3. Definir variáveis do backend no Portainer (Stack > Environment)
+
+version: "3.7"
+
+services:
+  clinica_pro_frontend:
+    image: clinica_pro_frontend:latest
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.clinica_pro_frontend.rule=Host(`clinica.conectadiva.com.br`)
+        - traefik.http.services.clinica_pro_frontend.loadbalancer.server.port=80
+        - traefik.http.routers.clinica_pro_frontend.service=clinica_pro_frontend
+        - traefik.http.routers.clinica_pro_frontend.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.clinica_pro_frontend.entrypoints=websecure
+        - traefik.http.routers.clinica_pro_frontend.tls=true
+    networks:
+      - minha_rede
+
+  clinica_pro_backend:
+    image: clinica_pro_backend:latest
+    environment:
+      PORT: "3021"
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1024M
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.clinica_pro_backend.rule=Host(`api-clinica.conectadiva.com.br`)
+        - traefik.http.services.clinica_pro_backend.loadbalancer.server.port=3021
+        - traefik.http.routers.clinica_pro_backend.service=clinica_pro_backend
+        - traefik.http.routers.clinica_pro_backend.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.clinica_pro_backend.entrypoints=websecure
+        - traefik.http.routers.clinica_pro_backend.tls=true
+    networks:
+      - minha_rede
+
+networks:
+  minha_rede:
+    external: true
+    name: minha_rede
