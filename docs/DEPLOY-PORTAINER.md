@@ -39,36 +39,62 @@ Ajuste os domínios em `docker/portainer-stack.yml` nos labels `Host(...)` se us
 
 As variáveis `VITE_*` entram **no build** do frontend (ficam gravadas no `dist`).
 
-### Windows (PowerShell) – na raiz do repositório
+### Configurar variáveis uma vez (recomendado)
+
+Na raiz do projeto, crie `.env.production` (não vai para o Git):
+
+```bash
+cp .env.production.example .env.production
+nano .env.production   # preencha URL Supabase, anon key e URL pública do backend
+```
+
+Exemplo:
+
+```env
+VITE_SUPABASE_URL=https://SEU_PROJECT_REF.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=sua-chave-anon-public
+VITE_BACKEND_URL=https://api-clinica.conectadiva.com.br
+```
+
+Depois, **todo build** usa esse arquivo automaticamente.
+
+### Build com script (recomendado)
+
+**Linux (servidor):**
+
+```bash
+cd /opt/clinica-pro
+chmod +x scripts/build-docker-images.sh
+./scripts/build-docker-images.sh
+```
+
+**Windows:**
 
 ```powershell
-$env:VITE_SUPABASE_URL = "https://SEU_PROJECT_REF.supabase.co"
-$env:VITE_SUPABASE_PUBLISHABLE_KEY = "sua-chave-anon-public"
-$env:VITE_BACKEND_URL = "https://api-clinica.conectadiva.com.br"
+copy .env.production.example .env.production
+# edite .env.production
+.\scripts\build-docker-images.ps1
+```
 
-docker build -t clinica_pro_frontend:latest `
-  --build-arg VITE_SUPABASE_URL=$env:VITE_SUPABASE_URL `
-  --build-arg VITE_SUPABASE_PUBLISHABLE_KEY=$env:VITE_SUPABASE_PUBLISHABLE_KEY `
-  --build-arg VITE_BACKEND_URL=$env:VITE_BACKEND_URL `
-  .
+### Build manual (alternativa)
 
+Com `.env.production` na raiz, basta:
+
+```bash
+docker build -t clinica_pro_frontend:latest .
 docker build -t clinica_pro_backend:latest -f backend/Dockerfile backend/
 ```
 
-### Linux
+O Dockerfile copia `.env.production` e o Vite lê no `npm run build`.
+
+Ou passe `--build-arg` manualmente (sobrescreve o arquivo):
 
 ```bash
-export VITE_SUPABASE_URL=https://SEU_PROJECT_REF.supabase.co
-export VITE_SUPABASE_PUBLISHABLE_KEY=sua-chave-anon-public
-export VITE_BACKEND_URL=https://api-clinica.conectadiva.com.br
-
 docker build -t clinica_pro_frontend:latest \
-  --build-arg VITE_SUPABASE_URL \
-  --build-arg VITE_SUPABASE_PUBLISHABLE_KEY \
-  --build-arg VITE_BACKEND_URL \
+  --build-arg VITE_SUPABASE_URL=https://... \
+  --build-arg VITE_SUPABASE_PUBLISHABLE_KEY=... \
+  --build-arg VITE_BACKEND_URL=https://api-clinica.conectadiva.com.br \
   .
-
-docker build -t clinica_pro_backend:latest -f backend/Dockerfile backend/
 ```
 
 Confirme:
@@ -154,10 +180,9 @@ Após o deploy:
 
 No manager, na pasta do código atualizado:
 
-```powershell
-# Rebuild com mesmas VITE_* de produção
-docker build -t clinica_pro_frontend:latest ...
-docker build -t clinica_pro_backend:latest -f backend/Dockerfile backend/
+```bash
+git pull
+./scripts/build-docker-images.sh   # usa .env.production já configurado
 
 # Forçar atualização dos serviços
 docker service update --force clinica-pro_clinica_pro_frontend

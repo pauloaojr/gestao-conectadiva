@@ -8,6 +8,7 @@ dist-ssr
 
 # Environment variables (contém credenciais - NUNCA commitar!)
 .env
+.env.production
 .env.local
 .env.development.local
 .env.test.local

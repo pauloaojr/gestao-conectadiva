@@ -1,9 +1,12 @@
 # Frontend Clínica Pro – build Vite + Nginx
-# Build: docker build -t clinica_pro_frontend:latest \
-#   --build-arg VITE_SUPABASE_URL=... \
-#   --build-arg VITE_SUPABASE_PUBLISHABLE_KEY=... \
-#   --build-arg VITE_BACKEND_URL=https://api-clinica.seudominio.com.br \
-#   .
+#
+# Variáveis de produção (ordem de prioridade):
+# 1. Arquivo .env.production na raiz (recomendado — ver .env.production.example)
+# 2. --build-arg VITE_* na linha de comando
+# 3. scripts/build-docker-images.ps1 ou build-docker-images.sh
+#
+# Build rápido (com .env.production já criado):
+#   docker build -t clinica_pro_frontend:latest .
 
 FROM node:20-alpine AS build
 
@@ -14,15 +17,16 @@ RUN npm ci --legacy-peer-deps
 
 COPY . .
 
+# Vite carrega .env.production automaticamente em `npm run build`.
+# Build-args (--build-arg) sobrescrevem o arquivo somente quando informados.
 ARG VITE_SUPABASE_URL
 ARG VITE_SUPABASE_PUBLISHABLE_KEY
 ARG VITE_BACKEND_URL
-
-ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
-ENV VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY
-ENV VITE_BACKEND_URL=$VITE_BACKEND_URL
-
-RUN npm run build
+RUN set -e; \
+  if [ -n "$VITE_SUPABASE_URL" ]; then export VITE_SUPABASE_URL="$VITE_SUPABASE_URL"; fi; \
+  if [ -n "$VITE_SUPABASE_PUBLISHABLE_KEY" ]; then export VITE_SUPABASE_PUBLISHABLE_KEY="$VITE_SUPABASE_PUBLISHABLE_KEY"; fi; \
+  if [ -n "$VITE_BACKEND_URL" ]; then export VITE_BACKEND_URL="$VITE_BACKEND_URL"; fi; \
+  npm run build
 
 FROM nginx:1.27-alpine
 
