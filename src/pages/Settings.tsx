@@ -1174,30 +1174,32 @@ const Settings = () => {
                     void handleChangePassword();
                   }}
                 >
-                  <Input
-                    type="text"
-                    name="username"
-                    autoComplete="username"
-                    value={user?.email || profileData.email || ""}
-                    readOnly
-                    tabIndex={-1}
-                    aria-hidden="true"
-                    className="sr-only"
-                  />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2 md:col-span-2">
+                      <Label htmlFor="passwordFormUsername">E-mail da conta</Label>
+                      <Input
+                        id="passwordFormUsername"
+                        name="username"
+                        type="email"
+                        autoComplete="username"
+                        value={user?.email || profileData.email || ""}
+                        readOnly
+                        className="bg-muted"
+                      />
+                    </div>
                     <div className="space-y-2 md:col-span-2">
                       <Label htmlFor="currentPassword">Senha atual</Label>
                       <Input
                         id="currentPassword"
-                      name="currentPassword"
-                      type="password"
-                      autoComplete="current-password"
-                      value={passwordData.currentPassword}
-                      onChange={(e) =>
-                        setPasswordData((prev) => ({ ...prev, currentPassword: e.target.value }))
-                      }
-                      placeholder="Digite sua senha atual"
-                    />
+                        name="currentPassword"
+                        type="password"
+                        autoComplete="current-password"
+                        value={passwordData.currentPassword}
+                        onChange={(e) =>
+                          setPasswordData((prev) => ({ ...prev, currentPassword: e.target.value }))
+                        }
+                        placeholder="Digite sua senha atual"
+                      />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="newPassword">Nova senha</Label>
