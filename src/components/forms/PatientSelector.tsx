@@ -62,7 +62,6 @@ export const PatientSelector = ({ value, onSelect, placeholder = "Selecionar pac
   );
 
   const handleSelect = (patient: Patient) => {
-    console.log('Paciente selecionado:', patient);
     onSelect(patient.name, patient.id);
     setOpen(false);
     setSearchValue("");

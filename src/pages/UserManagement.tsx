@@ -188,7 +188,6 @@ const UserManagement = () => {
   };
 
   const handleUpdatePermissions = (userId: string, permissions: any) => {
-    console.log('Update permissions:', userId, permissions);
     setShowPermissionsModal(false);
     setSelectedUser(null);
   };

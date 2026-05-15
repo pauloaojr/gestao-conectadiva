@@ -90,7 +90,6 @@ export const PatientSearch = ({ value, onValueChange, onSelect, placeholder }: P
   };
 
   const handleInputChange = (newValue: string) => {
-    console.log('PatientSearch - Input change:', newValue);
     onValueChange(newValue);
   };
 

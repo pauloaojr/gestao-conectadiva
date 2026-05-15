@@ -8,11 +8,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { EstablishmentProvider } from "@/contexts/EstablishmentContext";
 import { CustomizationProvider } from "@/contexts/CustomizationContext";
-import { AppointmentStatusConfigProvider } from "@/contexts/AppointmentStatusConfigContext";
-import { RevenueStatusConfigProvider } from "@/contexts/RevenueStatusConfigContext";
-import { ExpenseStatusConfigProvider } from "@/contexts/ExpenseStatusConfigContext";
-import { RevenueCategoryConfigProvider } from "@/contexts/RevenueCategoryConfigContext";
-import { ExpenseCategoryConfigProvider } from "@/contexts/ExpenseCategoryConfigContext";
+import { ClinicAppProviders } from "@/components/ClinicAppProviders";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import ClinicLayout from "./components/ClinicLayout";
@@ -92,15 +88,11 @@ function AppContent() {
   return (
     <EstablishmentProvider>
             <CustomizationProvider>
-              <AppointmentStatusConfigProvider>
-                <RevenueStatusConfigProvider>
-                <ExpenseStatusConfigProvider>
-                <RevenueCategoryConfigProvider>
-                <ExpenseCategoryConfigProvider>
                 <SidebarProvider>
                 <HashRouter>
                   <div className="min-h-screen flex w-full">
                     <ProtectedRoute>
+                      <ClinicAppProviders>
                       <ClinicLayout>
                         <Routes>
                           <Route path="/" element={<Dashboard />} />
@@ -235,15 +227,11 @@ function AppContent() {
                           <Route path="*" element={<NotFound />} />
                         </Routes>
                       </ClinicLayout>
+                      </ClinicAppProviders>
                     </ProtectedRoute>
                   </div>
                 </HashRouter>
                 </SidebarProvider>
-                </ExpenseCategoryConfigProvider>
-                </RevenueCategoryConfigProvider>
-                </ExpenseStatusConfigProvider>
-                </RevenueStatusConfigProvider>
-              </AppointmentStatusConfigProvider>
             </CustomizationProvider>
     </EstablishmentProvider>
   );

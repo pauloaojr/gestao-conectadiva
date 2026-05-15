@@ -46,7 +46,6 @@ export const useUsers = () => {
   ]);
 
   const addUser = useCallback((userData: Omit<User, 'id' | 'createdAt' | 'isActive' | 'lastLogin'>) => {
-    console.log('Adding user:', userData);
     
     const newUser: User = {
       ...userData,
@@ -55,13 +54,7 @@ export const useUsers = () => {
       isActive: true,
     };
     
-    console.log('Created new user object:', newUser);
-    
-    setUsers(prev => {
-      const updated = [...prev, newUser];
-      console.log('Updated users list:', updated);
-      return updated;
-    });
+    setUsers(prev => [...prev, newUser]);
     
     toast({
       title: "Atendente adicionado",
@@ -70,26 +63,19 @@ export const useUsers = () => {
   }, [toast]);
 
   const updateUser = useCallback((userId: string, updates: Partial<User>) => {
-    console.log('Updating user:', userId, 'with data:', updates);
-    
-    setUsers(prev => {
-      const updated = prev.map(user => {
+    setUsers(prev =>
+      prev.map(user => {
         if (user.id === userId) {
-          const updatedUser = {
+          return {
             ...user,
             ...updates,
-            // Garantir que campos obrigatórios não sejam perdidos
             id: user.id,
             createdAt: user.createdAt,
           };
-          console.log('Updated user object:', updatedUser);
-          return updatedUser;
         }
         return user;
-      });
-      console.log('Updated users list:', updated);
-      return updated;
-    });
+      })
+    );
     
     toast({
       title: "Atendente atualizado",

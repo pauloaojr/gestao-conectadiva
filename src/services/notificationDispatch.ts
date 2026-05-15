@@ -575,7 +575,7 @@ async function dispatchViaBackend(input: DispatchInput): Promise<boolean> {
     });
 
     if (res.ok) {
-      console.info("[notificações] ✓ Enviado via backend");
+      if (import.meta.env.DEV) console.info("[notificações] ✓ Enviado via backend");
       return true;
     }
     console.warn("[dispatch] Backend retornou", res.status, await res.text().catch(() => ""));
@@ -591,7 +591,7 @@ export async function dispatchNotificationEvent(input: DispatchInput) {
     const usedBackend = await dispatchViaBackend(input);
     if (usedBackend) return;
 
-    console.info("[notificações] Enviando via frontend (fallback)");
+    if (import.meta.env.DEV) console.info("[notificações] Enviando via frontend (fallback)");
     const rules = await loadActiveRules(input.service, input.eventKey);
     if (rules.length === 0) return;
 
