@@ -1,0 +1,25 @@
+---
+description: Memória do projeto Clínica Pro (ambiente Windows, SSH, dev local, notificações)
+alwaysApply: true
+---
+
+# Memória – Clínica Pro
+
+Consulte também `docs/MEMORIA-PROJETO.md` para detalhes completos.
+
+## SSH / Git (Windows – Paulo)
+
+- `git push` não deve pedir passphrase se `ssh-agent` estiver **Running** e a chave estiver no agente.
+- Chave: `C:\Users\paulo\.ssh\id_ed25519` | Git SSH: `C:/Windows/System32/OpenSSH/ssh.exe` (global).
+- `~/.ssh/config`: `AddKeysToAgent yes`, `IdentityFile ~/.ssh/id_ed25519`.
+- Serviço `ssh-agent`: **Automatic** + iniciado; perfil PowerShell inicia o agente se parado.
+- Reconfigurar: `scripts/setup-ssh-agent.ps1` (Admin). Após reboot, se pedir de novo: `ssh-add C:\Users\paulo\.ssh\id_ed25519`.
+- Remote: `github.com:pauloaojr/gestao-conectadiva.git`.
+
+## Dev local
+
+- Front: `npm run dev` → :8081 | Backend: `backend/` → :3021 | `VITE_BACKEND_URL=http://localhost:3021`.
+
+## Produção / notificações
+
+- Scheduler (Supabase) exige URL **pública** do backend para e-mail; localhost só no teste pelo browser.

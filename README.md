@@ -382,6 +382,7 @@ Usuários de teste e níveis de acesso (Admin, Gerente, Atendente): [CREDENCIAIS
 | [INSTALL.md](./INSTALL.md) | Migrations, deploy Supabase, Edge Functions, cron de notificações |
 | [backend/README.md](./backend/README.md) | Endpoints do backend, deploy do serviço de e-mail |
 | [CREDENCIAIS.md](./CREDENCIAIS.md) | Logins de desenvolvimento |
+| [docs/MEMORIA-PROJETO.md](./docs/MEMORIA-PROJETO.md) | Memória do projeto (ambiente, SSH, notas para o time/IA) |
 
 ---
 
