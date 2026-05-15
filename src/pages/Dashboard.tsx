@@ -14,6 +14,7 @@ import { useCustomizationContext } from "@/contexts/CustomizationContext";
 import { useAppointmentStatusConfigContext } from "@/contexts/AppointmentStatusConfigContext";
 import { useToast } from "@/components/ui/use-toast";
 import { ViewRecordModal } from "@/components/ViewRecordModal";
+import { fetchExactCount } from "@/lib/supabaseCount";
 
 interface DashboardAppointment {
   id: string;
@@ -59,33 +60,41 @@ const Dashboard = () => {
 
         // Fetch all data in parallel
         const [
-          patientsResult,
+          totalPatients,
           todayApptsResult,
-          weekApptsResult,
-          pendingRecordsResult
+          weekAppointments,
+          pendingReports,
         ] = await Promise.all([
-          supabase.from('patients').select('id', { count: 'exact', head: true }),
+          fetchExactCount(() =>
+            supabase.from("patients").select("id", { count: "exact" }).range(0, 0)
+          ),
           supabase
             .from('appointments')
             .select('id, patient_id, patient_name, appointment_time, service_name, status')
             .eq('appointment_date', today)
             .order('appointment_time', { ascending: true }),
-          supabase
-            .from('appointments')
-            .select('id', { count: 'exact', head: true })
-            .gte('appointment_date', weekStart)
-            .lte('appointment_date', weekEnd),
-          supabase
-            .from('medical_records')
-            .select('id', { count: 'exact', head: true })
-            .eq('status', 'starting')
+          fetchExactCount(() =>
+            supabase
+              .from("appointments")
+              .select("id", { count: "exact" })
+              .gte("appointment_date", weekStart)
+              .lte("appointment_date", weekEnd)
+              .range(0, 0)
+          ),
+          fetchExactCount(() =>
+            supabase
+              .from("medical_records")
+              .select("id", { count: "exact" })
+              .eq("status", "starting")
+              .range(0, 0)
+          ),
         ]);
 
         setStats({
-          totalPatients: patientsResult.count || 0,
+          totalPatients,
           todayAppointments: todayApptsResult.data?.length || 0,
-          weekAppointments: weekApptsResult.count || 0,
-          pendingReports: pendingRecordsResult.count || 0
+          weekAppointments,
+          pendingReports,
         });
 
         setTodaysAppointments(todayApptsResult.data || []);

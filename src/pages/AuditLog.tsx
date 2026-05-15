@@ -362,14 +362,16 @@ const AuditLog = () => {
       const [successRes, failedRes, errorsRes] = await Promise.all([
         supabase
           .from("minio_storage_audit_logs")
-          .select("id", { count: "exact", head: true })
+          .select("id", { count: "exact" })
           .gte("created_at", since)
-          .eq("status", "success"),
+          .eq("status", "success")
+          .range(0, 0),
         supabase
           .from("minio_storage_audit_logs")
-          .select("id", { count: "exact", head: true })
+          .select("id", { count: "exact" })
           .gte("created_at", since)
-          .eq("status", "error"),
+          .eq("status", "error")
+          .range(0, 0),
         supabase
           .from("minio_storage_audit_logs")
           .select("error_message")
@@ -417,24 +419,28 @@ const AuditLog = () => {
       ] = await Promise.all([
         supabase
           .from("minio_storage_audit_logs")
-          .select("id", { count: "exact", head: true })
+          .select("id", { count: "exact" })
           .gte("created_at", since7d)
-          .eq("status", "success"),
+          .eq("status", "success")
+          .range(0, 0),
         supabase
           .from("minio_storage_audit_logs")
-          .select("id", { count: "exact", head: true })
+          .select("id", { count: "exact" })
           .gte("created_at", since7d)
-          .eq("status", "error"),
+          .eq("status", "error")
+          .range(0, 0),
         supabase
           .from("minio_storage_audit_logs")
-          .select("id", { count: "exact", head: true })
+          .select("id", { count: "exact" })
           .gte("created_at", since30d)
-          .eq("status", "success"),
+          .eq("status", "success")
+          .range(0, 0),
         supabase
           .from("minio_storage_audit_logs")
-          .select("id", { count: "exact", head: true })
+          .select("id", { count: "exact" })
           .gte("created_at", since30d)
-          .eq("status", "error"),
+          .eq("status", "error")
+          .range(0, 0),
       ]);
 
       const s7 = success7d.count || 0;
@@ -469,14 +475,16 @@ const AuditLog = () => {
       const [successRes, failedRes] = await Promise.all([
         supabase
           .from("minio_storage_audit_logs")
-          .select("id", { count: "exact", head: true })
+          .select("id", { count: "exact" })
           .gte("created_at", since)
-          .eq("status", "success"),
+          .eq("status", "success")
+          .range(0, 0),
         supabase
           .from("minio_storage_audit_logs")
-          .select("id", { count: "exact", head: true })
+          .select("id", { count: "exact" })
           .gte("created_at", since)
-          .eq("status", "error"),
+          .eq("status", "error")
+          .range(0, 0),
       ]);
       const success = successRes.count || 0;
       const failed = failedRes.count || 0;
@@ -598,14 +606,16 @@ const AuditLog = () => {
       const [successRes, failedRes, errorsRes] = await Promise.all([
         supabase
           .from("notification_dispatch_logs")
-          .select("id", { count: "exact", head: true })
+          .select("id", { count: "exact" })
           .gte("created_at", since)
-          .eq("status", "success"),
+          .eq("status", "success")
+          .range(0, 0),
         supabase
           .from("notification_dispatch_logs")
-          .select("id", { count: "exact", head: true })
+          .select("id", { count: "exact" })
           .gte("created_at", since)
-          .eq("status", "failed"),
+          .eq("status", "failed")
+          .range(0, 0),
         supabase
           .from("notification_dispatch_logs")
           .select("error_message")

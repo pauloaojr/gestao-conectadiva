@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Clock, Inbox, MessageSquare } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchExactCount } from "@/lib/supabaseCount";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -37,11 +38,11 @@ export function NotificationQueueVisibility() {
 
       const [
         lastLogRes,
-        success24hRes,
-        failed24hRes,
-        appointmentsRes,
-        revenuesRes,
-        pendingJobsRes,
+        last24hSuccess,
+        last24hFailed,
+        appointmentsNext24h,
+        revenuesLast2h,
+        pendingJobsCount,
       ] = await Promise.all([
         supabase
           .from("notification_dispatch_logs")
@@ -49,39 +50,54 @@ export function NotificationQueueVisibility() {
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle(),
-        supabase
-          .from("notification_dispatch_logs")
-          .select("id", { count: "exact", head: true })
-          .gte("created_at", since24h)
-          .eq("status", "success"),
-        supabase
-          .from("notification_dispatch_logs")
-          .select("id", { count: "exact", head: true })
-          .gte("created_at", since24h)
-          .eq("status", "failed"),
-        supabase
-          .from("appointments")
-          .select("id", { count: "exact", head: true })
-          .in("status", ["pending", "confirmed"])
-          .gte("appointment_date", today),
-        supabase
-          .from("revenue")
-          .select("id", { count: "exact", head: true })
-          .gte("created_at", since2h),
-        supabase
-          .from("notification_jobs")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "pending"),
+        fetchExactCount(() =>
+          supabase
+            .from("notification_dispatch_logs")
+            .select("id", { count: "exact" })
+            .gte("created_at", since24h)
+            .eq("status", "success")
+            .range(0, 0)
+        ),
+        fetchExactCount(() =>
+          supabase
+            .from("notification_dispatch_logs")
+            .select("id", { count: "exact" })
+            .gte("created_at", since24h)
+            .eq("status", "failed")
+            .range(0, 0)
+        ),
+        fetchExactCount(() =>
+          supabase
+            .from("appointments")
+            .select("id", { count: "exact" })
+            .in("status", ["pending", "confirmed"])
+            .gte("appointment_date", today)
+            .range(0, 0)
+        ),
+        fetchExactCount(() =>
+          supabase
+            .from("revenue")
+            .select("id", { count: "exact" })
+            .gte("created_at", since2h)
+            .range(0, 0)
+        ),
+        fetchExactCount(() =>
+          supabase
+            .from("notification_jobs")
+            .select("id", { count: "exact" })
+            .eq("status", "pending")
+            .range(0, 0)
+        ),
       ]);
 
       setData({
         lastSentAt: lastLogRes.data?.created_at ?? null,
         lastSentCount: 1,
-        last24hSuccess: success24hRes.count ?? 0,
-        last24hFailed: failed24hRes.count ?? 0,
-        appointmentsNext24h: appointmentsRes.count ?? 0,
-        revenuesLast2h: revenuesRes.count ?? 0,
-        pendingJobsCount: pendingJobsRes.count ?? 0,
+        last24hSuccess,
+        last24hFailed,
+        appointmentsNext24h,
+        revenuesLast2h,
+        pendingJobsCount,
       });
     } catch {
       // silencioso
