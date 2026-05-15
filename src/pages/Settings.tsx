@@ -1174,11 +1174,21 @@ const Settings = () => {
                     void handleChangePassword();
                   }}
                 >
+                  <Input
+                    type="text"
+                    name="username"
+                    autoComplete="username"
+                    value={user?.email || profileData.email || ""}
+                    readOnly
+                    tabIndex={-1}
+                    aria-hidden="true"
+                    className="sr-only"
+                  />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2 md:col-span-2">
                       <Label htmlFor="currentPassword">Senha atual</Label>
-                    <Input
-                      id="currentPassword"
+                      <Input
+                        id="currentPassword"
                       name="currentPassword"
                       type="password"
                       autoComplete="current-password"
