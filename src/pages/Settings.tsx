@@ -1167,14 +1167,25 @@ const Settings = () => {
                     </p>
                   </div>
                 )}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="currentPassword">Senha atual</Label>
+                <form
+                  className="space-y-4"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void handleChangePassword();
+                  }}
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2 md:col-span-2">
+                      <Label htmlFor="currentPassword">Senha atual</Label>
                     <Input
                       id="currentPassword"
+                      name="currentPassword"
                       type="password"
+                      autoComplete="current-password"
                       value={passwordData.currentPassword}
-                      onChange={(e) => setPasswordData(prev => ({ ...prev, currentPassword: e.target.value }))}
+                      onChange={(e) =>
+                        setPasswordData((prev) => ({ ...prev, currentPassword: e.target.value }))
+                      }
                       placeholder="Digite sua senha atual"
                     />
                   </div>
@@ -1182,9 +1193,13 @@ const Settings = () => {
                     <Label htmlFor="newPassword">Nova senha</Label>
                     <Input
                       id="newPassword"
+                      name="newPassword"
                       type="password"
+                      autoComplete="new-password"
                       value={passwordData.newPassword}
-                      onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
+                      onChange={(e) =>
+                        setPasswordData((prev) => ({ ...prev, newPassword: e.target.value }))
+                      }
                       placeholder="Digite a nova senha"
                     />
                   </div>
@@ -1192,16 +1207,21 @@ const Settings = () => {
                     <Label htmlFor="confirmPassword">Confirmar nova senha</Label>
                     <Input
                       id="confirmPassword"
+                      name="confirmPassword"
                       type="password"
+                      autoComplete="new-password"
                       value={passwordData.confirmPassword}
-                      onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                      onChange={(e) =>
+                        setPasswordData((prev) => ({ ...prev, confirmPassword: e.target.value }))
+                      }
                       placeholder="Confirme a nova senha"
                     />
                   </div>
                 </div>
-                <Button onClick={handleChangePassword} className="clinic-gradient text-white">
-                  Alterar Senha
-                </Button>
+                  <Button type="submit" className="clinic-gradient text-white">
+                    Alterar Senha
+                  </Button>
+                </form>
               </div>
 
               {/* System Settings */}

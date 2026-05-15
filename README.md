@@ -205,9 +205,11 @@ Em produção o sistema usa **três camadas** que devem ser publicadas e configu
 
 | Camada | O que publicar | Onde hospedar (exemplos) |
 |--------|----------------|---------------------------|
-| **Frontend** | Build estático (`dist/`) | Vercel, Netlify, Cloudflare Pages, Supabase Hosting |
-| **Backend** | Pasta `backend/` (Node.js) | Railway, Render, Fly.io, VPS |
+| **Frontend** | Build estático (`dist/`) ou imagem Docker + Nginx | Vercel, Netlify, **Portainer/Swarm** |
+| **Backend** | Pasta `backend/` (Node.js) ou imagem Docker | Railway, Render, **Portainer/Swarm** |
 | **Supabase** | Migrations + Edge Functions | Supabase Cloud (já gerenciado) |
+
+Deploy com **Portainer + Traefik** (mesmo padrão da stack Perfex): [docs/DEPLOY-PORTAINER.md](./docs/DEPLOY-PORTAINER.md).
 
 ---
 
@@ -383,6 +385,7 @@ Usuários de teste e níveis de acesso (Admin, Gerente, Atendente): [CREDENCIAIS
 | [backend/README.md](./backend/README.md) | Endpoints do backend, deploy do serviço de e-mail |
 | [CREDENCIAIS.md](./CREDENCIAIS.md) | Logins de desenvolvimento |
 | [docs/MEMORIA-PROJETO.md](./docs/MEMORIA-PROJETO.md) | Memória do projeto (ambiente, SSH, notas para o time/IA) |
+| [docs/DEPLOY-PORTAINER.md](./docs/DEPLOY-PORTAINER.md) | Deploy em produção com Portainer (Swarm + Traefik) |
 
 ---
 

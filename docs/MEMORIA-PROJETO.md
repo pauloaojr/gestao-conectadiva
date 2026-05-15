@@ -53,6 +53,14 @@ Variáveis principais: ver [README.md](../README.md) (seções desenvolvimento e
 
 ---
 
+## Deploy Portainer (produção)
+
+- Stack: `docker/portainer-stack.yml` — rede `minha_rede`, Traefik, domínios exemplo `clinica.conectadiva.com.br` + `api-clinica.conectadiva.com.br`.
+- Imagens: `clinica_pro_frontend:latest`, `clinica_pro_backend:latest` — build com `scripts/build-docker-images.ps1`.
+- MinIO e Evolution **não** entram na stack do app. Guia completo: [DEPLOY-PORTAINER.md](./DEPLOY-PORTAINER.md).
+
+---
+
 ## Onde documentar mudanças futuras
 
 Adicione novas entradas neste arquivo (com data) ou crie seções. A regra do Cursor em `.cursor/rules/memoria-projeto.mdc` resume pontos críticos para o agente.
